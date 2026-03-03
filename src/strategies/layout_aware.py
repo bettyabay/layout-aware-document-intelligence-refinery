@@ -35,10 +35,28 @@ class LayoutExtractor(ExtractionStrategy):
     def __init__(self) -> None:
         super().__init__(name="layout_aware")
         if DocumentConverter is None:
-            raise ImportError(
-                "docling is not installed or could not be imported. "
-                "Install it with `pip install docling` to use LayoutExtractor."
-            ) from _DOC_CONVERTER_IMPORT_ERROR
+            # Provide more helpful error messages based on the underlying issue
+            error_msg = "docling could not be imported."
+            if _DOC_CONVERTER_IMPORT_ERROR is not None:
+                error_type = type(_DOC_CONVERTER_IMPORT_ERROR).__name__
+                if isinstance(_DOC_CONVERTER_IMPORT_ERROR, OSError):
+                    error_msg = (
+                        "docling is installed but PyTorch failed to load (DLL error). "
+                        "This is often due to missing Visual C++ redistributables on Windows. "
+                        "Try: 1) Install Visual C++ Redistributable from Microsoft, "
+                        "or 2) Reinstall PyTorch CPU-only: `pip uninstall torch && pip install torch --index-url https://download.pytorch.org/whl/cpu`"
+                    )
+                elif isinstance(_DOC_CONVERTER_IMPORT_ERROR, ImportError):
+                    error_msg = (
+                        "docling is not installed. "
+                        "Install it with `pip install docling` to use LayoutExtractor."
+                    )
+                else:
+                    error_msg = (
+                        f"docling import failed with {error_type}: {_DOC_CONVERTER_IMPORT_ERROR}. "
+                        "Ensure docling and its dependencies (PyTorch, transformers) are properly installed."
+                    )
+            raise ImportError(error_msg) from _DOC_CONVERTER_IMPORT_ERROR
         self._converter = DocumentConverter()
 
     # ------------------------------------------------------------------ #
