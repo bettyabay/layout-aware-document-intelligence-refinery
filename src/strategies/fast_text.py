@@ -53,11 +53,15 @@ class FastTextExtractor(ExtractionStrategy):
                     use_text_flow=True, keep_blank_chars=False
                 ) or []
                 for w in words:
+                    # Normalize coordinates: ensure y0 < y1
+                    # pdfplumber uses PDF coordinates where top < bottom
+                    top = float(w.get("top", 0.0))
+                    bottom = float(w.get("bottom", 0.0))
                     bbox = BoundingBox(
                         x0=float(w.get("x0", 0.0)),
-                        y0=float(w.get("bottom", 0.0)),
+                        y0=min(bottom, top),  # Bottom coordinate (smaller)
                         x1=float(w.get("x1", 0.0)),
-                        y1=float(w.get("top", 0.0)),
+                        y1=max(bottom, top),  # Top coordinate (larger)
                     )
                     text_blocks.append(
                         TextBlock(
@@ -85,11 +89,12 @@ class FastTextExtractor(ExtractionStrategy):
                     headers = [str(c) for c in raw_rows[0]]
                     rows = [[str(c) for c in r] for r in raw_rows[1:]]
                     x0, top, x1, bottom = t.bbox
+                    # Normalize coordinates: ensure y0 < y1
                     bbox = BoundingBox(
                         x0=float(x0),
-                        y0=float(bottom),
+                        y0=min(float(bottom), float(top)),  # Bottom coordinate
                         x1=float(x1),
-                        y1=float(top),
+                        y1=max(float(bottom), float(top)),  # Top coordinate
                     )
                     tables.append(
                         Table(
@@ -107,7 +112,13 @@ class FastTextExtractor(ExtractionStrategy):
                     x1 = float(img.get("x1", x0))
                     top = float(img.get("top", 0.0))
                     bottom = float(img.get("bottom", top))
-                    bbox = BoundingBox(x0=x0, y0=bottom, x1=x1, y1=top)
+                    # Normalize coordinates: ensure y0 < y1
+                    bbox = BoundingBox(
+                        x0=x0,
+                        y0=min(bottom, top),  # Bottom coordinate
+                        x1=x1,
+                        y1=max(bottom, top),  # Top coordinate
+                    )
                     figures.append(
                         Figure(
                             caption="",

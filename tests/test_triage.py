@@ -28,7 +28,7 @@ def triage_agent(profiles_dir: Path) -> TriageAgent:
 @pytest.mark.parametrize(
     ("relative_path", "expected_origin"),
     [
-        ("class_a/CBE ANNUAL REPORT 2023-24.pdf", "native_digital"),
+        ("class_a/CBE_ANNUAL_REPORT_2023-24.pdf", "native_digital"),
         ("class_c/fta_performance_survey_final_report_2022.pdf", "mixed"),
         ("class_d/tax_expenditure_ethiopia_2021_22.pdf", "native_digital"),
         ("class_b/Annual_Report_JUNE-2023.pdf", "scanned_image"),
@@ -63,7 +63,7 @@ def test_origin_type_classification(
 @pytest.mark.parametrize(
     ("relative_path", "expected_domain"),
     [
-        ("class_a/CBE ANNUAL REPORT 2023-24.pdf", "financial"),
+        ("class_a/CBE_ANNUAL_REPORT_2023-24.pdf", "financial"),
         ("class_d/tax_expenditure_ethiopia_2021_22.pdf", "financial"),
     ],
 )

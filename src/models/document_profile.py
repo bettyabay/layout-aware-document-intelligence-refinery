@@ -75,6 +75,14 @@ class DocumentProfile(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    doc_id: str = Field(
+        ...,
+        description=(
+            "Stable document identifier for this file, typically derived from the "
+            "filename stem (e.g. 'CBE_ANNUAL_REPORT_2023-24')."
+        ),
+    )
+
     origin_type: OriginType = Field(
         ...,
         description=(
@@ -119,12 +127,9 @@ class DocumentProfile(BaseModel):
         ),
     )
 
-    metadata: Dict[str, Any] = Field(
-        default_factory=dict,
-        description=(
-            "Arbitrary file metadata. Expected keys include: 'file' (path), "
-            "'size_bytes', 'page_count', 'mime_type', 'checksum'."
-        ),
+    metadata: FileMetadata = Field(
+        ...,
+        description="File-level metadata used by the triage and extraction stages.",
     )
 
     @field_validator("language")
@@ -139,28 +144,6 @@ class DocumentProfile(BaseModel):
             Normalised language string.
         """
         return value.strip().lower()
-
-    @field_validator("metadata")
-    @classmethod
-    def _ensure_core_metadata(cls, value: Dict[str, Any]) -> Dict[str, Any]:
-        """Ensure that mandatory metadata keys are present if possible.
-
-        This validator does **not** raise if metadata is incomplete – it simply
-        normalises and provides sensible defaults where necessary.
-
-        Args:
-            value: Raw metadata dictionary.
-
-        Returns:
-            Normalised metadata dictionary.
-        """
-        normalised = dict(value)
-        # Normalise key names
-        if "path" in normalised and "file" not in normalised:
-            normalised["file"] = normalised["path"]
-        if "file" in normalised and "path" not in normalised:
-            normalised["path"] = normalised["file"]
-        return normalised
 
     # ---------------------------------------------------------------------
     # Convenience serialization helpers
