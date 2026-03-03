@@ -1,0 +1,16 @@
+{
+  "doc_id": "Annual_Report_JUNE-2023",
+  "origin_type": "native_digital",
+  "layout_complexity": "figure_heavy",
+  "language": "en",
+  "language_confidence": 0.99,
+  "domain_hint": "financial",
+  "estimated_cost": "needs_layout_model",
+  "metadata": {
+    "path": "C:\\Users\\Hello\\OneDrive\\Desktop\\Tenacious-Projects\\layout-aware-document-intelligence-refinery\\data\\class_b\\Annual_Report_JUNE-2023.pdf",
+    "size_bytes": 2808643,
+    "page_count": 104,
+    "mime_type": "application/pdf",
+    "checksum": null
+  }
+}

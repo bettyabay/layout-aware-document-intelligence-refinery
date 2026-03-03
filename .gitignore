@@ -131,7 +131,7 @@ dmypy.json
 .DS_Store
 
 # Project specific
-.refinery/
+
 *.pdf
 *.docx
 *.xlsx
