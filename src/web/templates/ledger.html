@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Extraction Ledger - Document Intelligence Refinery{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Extraction Ledger</h1>
+    <p class="ledger-info">Showing last {{ limit }} entries from extraction_ledger.jsonl</p>
+    
+    {% if entries %}
+    <div class="ledger-table-container">
+        <table class="ledger-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Document ID</th>
+                    <th>Page</th>
+                    <th>Strategy</th>
+                    <th>Confidence</th>
+                    <th>Cost (USD)</th>
+                    <th>Time (s)</th>
+                    <th>Success</th>
+                    <th>Escalation Path</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in entries|reverse %}
+                <tr class="{% if not entry.success %}error-row{% endif %}">
+                    <td>{{ entry.timestamp_formatted }}</td>
+                    <td><a href="/extraction/{{ entry.document_id }}">{{ entry.document_id }}</a></td>
+                    <td>{{ entry.page_num }}</td>
+                    <td><span class="strategy-badge strategy-{{ entry.strategy_used }}">{{ entry.strategy_used }}</span></td>
+                    <td>{{ "%.1f"|format(entry.confidence_score * 100) }}%</td>
+                    <td>${{ "%.6f"|format(entry.cost_estimate.total_cost_usd) }}</td>
+                    <td>{{ "%.2f"|format(entry.processing_time_seconds) }}</td>
+                    <td>
+                        {% if entry.success %}
+                        <span class="success-badge">✓</span>
+                        {% else %}
+                        <span class="error-badge">✗</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="escalation-path">{{ entry.escalation_path|join(' → ') }}</span>
+                    </td>
+                </tr>
+                {% if entry.error %}
+                <tr class="error-detail">
+                    <td colspan="9" class="error-message">{{ entry.error }}</td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="no-data">No entries in ledger yet. Upload and process a document to see extraction logs.</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Simple timestamp conversion (if not handled server-side)
+document.querySelectorAll('.ledger-table td').forEach(cell => {
+    // Add any client-side formatting if needed
+});
+</script>
+{% endblock %}

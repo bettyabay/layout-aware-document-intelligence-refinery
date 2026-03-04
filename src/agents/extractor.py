@@ -48,7 +48,7 @@ class ExtractionRouter:
 
     def __init__(
         self,
-        confidence_threshold: float = 0.7,
+        confidence_threshold: float = 0.5,
         ledger_path: Optional[Path] = None,
         enable_parallel: bool = False,
         max_workers: int = 4,
