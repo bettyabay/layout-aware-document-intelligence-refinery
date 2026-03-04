@@ -61,6 +61,37 @@ def test_origin_type_classification(
 
 
 @pytest.mark.parametrize(
+    ("relative_path", "must_not_be"),
+    [
+        # Annual report – multi-column narrative with tables
+        ("class_a/CBE_ANNUAL_REPORT_2023-24.pdf", "single_column"),
+        # Technical assessment – mixed narrative + tables
+        ("class_c/fta_performance_survey_final_report_2022.pdf", "single_column"),
+        # Tax expenditure report – table-heavy fiscal data
+        ("class_d/tax_expenditure_ethiopia_2021_22.pdf", "single_column"),
+    ],
+)
+def test_layout_complexity_not_single_for_complex_docs(
+    triage_agent: TriageAgent,
+    relative_path: str,
+    must_not_be: str,
+) -> None:
+    """Layout complexity should recognise complex layouts as non-single-column.
+
+    The exact label (multi_column, table_heavy, figure_heavy, mixed) may vary
+    by heuristic, but for known complex documents the agent must not classify
+    them as purely ``single_column``.
+    """
+    pdf_path = DATA_DIR / relative_path
+    if not pdf_path.exists():
+        pytest.skip(f"Test PDF not found: {pdf_path}")
+
+    profile = triage_agent.classify_document(pdf_path)
+    assert isinstance(profile, DocumentProfile)
+    assert profile.layout_complexity != must_not_be
+
+
+@pytest.mark.parametrize(
     ("relative_path", "expected_domain"),
     [
         ("class_a/CBE_ANNUAL_REPORT_2023-24.pdf", "financial"),

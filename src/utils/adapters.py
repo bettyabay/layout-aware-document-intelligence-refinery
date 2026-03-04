@@ -11,7 +11,7 @@ against a stable internal schema.
 
 from __future__ import annotations
 
-from typing import Any, List
+from typing import Any, List, Mapping
 
 from src.models.extracted_document import (
     BoundingBox,
@@ -220,4 +220,144 @@ class DoclingAdapter:
 
 
 __all__ = ["DoclingAdapter"]
+
+
+class MinerUAdapter:
+    """Adapter for converting MinerU-style JSON into ``ExtractedDocument``.
+
+    MinerU's public APIs and output formats may evolve, and different pipelines
+    can be configured to emit different JSON/Markdown schemas. Rather than
+    binding tightly to a single version, this adapter expects a *normalised*
+    mapping that follows a small, documented contract:
+
+    Normalised schema (what this adapter expects):
+
+    .. code-block:: json
+
+        {
+          "pages": [
+            {
+              "page_num": 1,
+              "text_blocks": [
+                {"text": "...", "bbox": {"x0": 10, "y0": 20, "x1": 100, "y1": 60}}
+              ],
+              "tables": [
+                {
+                  "headers": ["Col1", "Col2"],
+                  "rows": [["v1", "v2"]],
+                  "bbox": {"x0": 5, "y0": 5, "x1": 200, "y1": 120}
+                }
+              ],
+              "figures": [
+                {
+                  "caption": "Some figure",
+                  "bbox": {"x0": 30, "y0": 40, "x1": 180, "y1": 220}
+                }
+              ]
+            }
+          ]
+        }
+
+    A thin MinerU-specific parsing layer (inside the MinerU-based strategy) is
+    responsible for transforming whatever MinerU actually outputs into this
+    normalised mapping. This keeps all MinerU-version-specific logic out of the
+    core models.
+    """
+
+    @classmethod
+    def from_mineru_json(cls, data: Mapping[str, Any]) -> ExtractedDocument:
+        """Convert a normalised MinerU JSON mapping into ``ExtractedDocument``.
+
+        Args:
+            data: Mapping following the schema documented in the class docstring.
+                  It is typically produced by a MinerU extractor after parsing
+                  MinerU's raw JSON/Markdown output.
+        """
+        pages = data.get("pages") or []
+
+        text_blocks: List[TextBlock] = []
+        tables: List[Table] = []
+        figures: List[Figure] = []
+
+        for page in pages:
+            page_num = int(page.get("page_num", 0)) or 0
+
+            # Text blocks
+            for tb in page.get("text_blocks") or []:
+                text = str(tb.get("text", "") or "")
+                if not text.strip():
+                    continue
+                bbox = cls._bbox_from_mapping(tb.get("bbox"))
+                text_blocks.append(
+                    TextBlock(
+                        content=text,
+                        bbox=bbox,
+                        page_num=page_num or 0,
+                    )
+                )
+
+            # Tables
+            for raw_table in page.get("tables") or []:
+                headers = [str(h) for h in (raw_table.get("headers") or [])]
+                rows_list = raw_table.get("rows") or []
+                rows = [[str(cell) for cell in (row or [])] for row in rows_list]
+                if not headers and not rows:
+                    continue
+                bbox = cls._bbox_from_mapping(raw_table.get("bbox"))
+                tables.append(
+                    Table(
+                        headers=headers,
+                        rows=rows,
+                        bbox=bbox,
+                        page_num=page_num or 0,
+                    )
+                )
+
+            # Figures
+            for raw_fig in page.get("figures") or []:
+                caption = str(raw_fig.get("caption", "") or "")
+                bbox = cls._bbox_from_mapping(raw_fig.get("bbox"))
+                figures.append(
+                    Figure(
+                        caption=caption,
+                        bbox=bbox,
+                        page_num=page_num or 0,
+                    )
+                )
+
+        reading_order = list(range(len(text_blocks)))
+
+        return ExtractedDocument(
+            text_blocks=text_blocks,
+            tables=tables,
+            figures=figures,
+            reading_order=reading_order,
+        )
+
+    # ------------------------------------------------------------------ #
+    # Helpers
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _bbox_from_mapping(bbox_obj: Any) -> BoundingBox:
+        """Create a ``BoundingBox`` from a loose mapping.
+
+        The mapping is expected to at least contain numeric ``x0, y0, x1, y1``
+        fields. If the mapping is missing or incomplete, a degenerate bbox at
+        the origin is returned so that downstream code always has a value.
+        """
+        if isinstance(bbox_obj, Mapping):
+            try:
+                x0 = float(bbox_obj.get("x0", 0.0))
+                y0 = float(bbox_obj.get("y0", 0.0))
+                x1 = float(bbox_obj.get("x1", 0.0))
+                y1 = float(bbox_obj.get("y1", 0.0))
+                return BoundingBox(x0=x0, y0=y0, x1=x1, y1=y1)
+            except (TypeError, ValueError):
+                pass
+
+        # Safe fallback
+        return BoundingBox(x0=0.0, y0=0.0, x1=0.0, y1=0.0)
+
+
+__all__ = ["DoclingAdapter", "MinerUAdapter"]
 

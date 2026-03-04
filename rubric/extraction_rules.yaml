@@ -1,0 +1,27 @@
+# Extraction strategy configuration and routing rules.
+#
+# This file is intended to be the single source of truth for:
+# - Thresholds used by the TriageAgent and confidence scorers.
+# - Strategy selection knobs (fast text vs layout-aware vs vision).
+# - Layout-aware backend choice (Docling vs MinerU).
+
+layout_strategy:
+  # Which layout-aware engine to use by default for Strategy B.
+  # Options:
+  #   - docling  : use `LayoutExtractor` (Docling-based)
+  #   - mineru   : use `MinerUExtractor` (MinerU-based)
+  engine: docling
+
+  # MinerU-specific configuration placeholders. These are not consumed
+  # directly by the current code yet, but document the intended control
+  # surface for a router or orchestration layer.
+  mineru:
+    # Default convention for MinerU JSON outputs. If empty, the
+    # `MinerUExtractor` will fall back to `<pdf>.mineru.json`.
+    output_dir: ".refinery/mineru_json"
+    output_extension: ".mineru.json"
+
+  docling:
+    # Reserved for future Docling-specific knobs (e.g., model variants).
+    model_variant: "default"
+
