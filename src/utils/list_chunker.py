@@ -150,7 +150,9 @@ class ListChunker:
             bbox_coords["y1"] = max(bbox_coords["y1"], block.bbox.y1)
 
         content = "\n".join(content_lines)
-        token_count = len(content) // 4
+        from src.utils.token_counter import count_tokens
+
+        token_count = count_tokens(content)
 
         # Create metadata
         metadata = {
@@ -199,7 +201,7 @@ class ListChunker:
 
             for block, list_info in items:
                 item_content = block.content
-                item_tokens = len(item_content) // 4
+                item_tokens = count_tokens(item_content)
 
                 # Check if adding this item would exceed max_tokens
                 if (

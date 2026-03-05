@@ -122,8 +122,10 @@ class TableChunker:
         # Convert to structured text representation
         content = self._table_to_structured_text(table, grouped_cells)
 
-        # Estimate token count
-        token_count = len(content) // 4
+        # Estimate token count using token counter
+        from src.utils.token_counter import count_tokens
+
+        token_count = count_tokens(content)
 
         # Create metadata with table structure information
         metadata = {
@@ -183,12 +185,12 @@ class TableChunker:
         # Estimate tokens per row (rough estimate)
         if grouped_cells:
             sample_row_text = " | ".join(str(cell) for cell in grouped_cells[0])
-            tokens_per_row = len(sample_row_text) // 4
+            tokens_per_row = count_tokens(sample_row_text)
         else:
             tokens_per_row = 10  # Default estimate
 
         # Calculate how many rows we can fit per chunk (including headers)
-        header_tokens = len(" | ".join(headers)) // 4 if headers else 0
+        header_tokens = count_tokens(" | ".join(headers)) if headers else 0
         available_tokens = self.max_tokens_per_chunk - header_tokens
         rows_per_chunk = max(1, available_tokens // max(tokens_per_row, 1))
 
@@ -230,7 +232,7 @@ class TableChunker:
                         "x1": table.bbox.x1,
                         "y1": table.bbox.y1,
                     },
-                    token_count=len(chunk_content) // 4,
+                    token_count=count_tokens(chunk_content),
                     metadata=chunk_metadata,
                 )
                 chunks.append(chunk_ldu)
@@ -267,7 +269,7 @@ class TableChunker:
                     "x1": table.bbox.x1,
                     "y1": table.bbox.y1,
                 },
-                token_count=len(chunk_content) // 4,
+                token_count=count_tokens(chunk_content),
                 metadata=chunk_metadata,
             )
             chunks.append(chunk_ldu)

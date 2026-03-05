@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Tuple
 
 from src.models.extracted_document import ExtractedDocument, Figure, TextBlock
 from src.models.ldu import LDU
+from src.utils.token_counter import count_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -186,7 +187,7 @@ class FigureChunker:
             chunk_type="figure",
             page_refs=page_refs,
             bounding_box=bbox,
-            token_count=len(content) // 4,
+            token_count=count_tokens(content),
             metadata=metadata,
         )
 

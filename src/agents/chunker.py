@@ -28,6 +28,7 @@ from src.utils.list_chunker import ListChunker
 from src.utils.reference_resolver import ReferenceResolver
 from src.utils.section_chunker import SectionChunker
 from src.utils.table_chunker import TableChunker
+from src.utils.token_counter import TokenCounter, count_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,9 @@ class ChunkingEngine:
         )
         self.section_chunker = SectionChunker()
         self.reference_resolver = ReferenceResolver()
+        # Initialize token counter
+        token_model = self.config.get("token_model", "gpt-4")
+        self.token_counter = TokenCounter(model=token_model)
 
     def load_config(self) -> dict:
         """Load chunking rules from the configuration file.
@@ -242,7 +246,7 @@ class ChunkingEngine:
 
                 # Estimate total tokens for the list
                 total_content = "\n".join(block.content for block, _ in group)
-                total_tokens = len(total_content) // 4
+                total_tokens = self.token_counter.count(total_content)
 
                 if total_tokens <= max_tokens:
                     # Create single LDU for entire list
@@ -265,12 +269,14 @@ class ChunkingEngine:
             # Determine chunk type based on content heuristics
             chunk_type = self._classify_text_block(block.content)
 
-            # Estimate token count (rough: ~4 chars per token)
-            token_count = len(block.content) // 4
+            # Count tokens using token counter
+            token_count = self.token_counter.count(block.content)
 
             # If content exceeds max_tokens, split intelligently
             if token_count > max_tokens:
-                sub_chunks = self._split_large_block(block, chunk_type, max_tokens)
+                sub_chunks = self._split_large_block(
+                    block, chunk_type, max_tokens, extracted_document
+                )
                 chunks.extend(sub_chunks)
             else:
                 ldu = LDU(
@@ -406,46 +412,203 @@ class ChunkingEngine:
         return "paragraph"
 
     def _split_large_block(
-        self, block, chunk_type: str, max_tokens: int
+        self,
+        block,
+        chunk_type: str,
+        max_tokens: int,
+        extracted_document: ExtractedDocument = None,
     ) -> List[LDU]:
-        """Split a large text block into smaller chunks.
+        """Split a large text block into smaller chunks with intelligent boundaries.
 
-        This method attempts to split on sentence boundaries to preserve
-        semantic coherence.
+        Priority for splitting:
+        1. Between sections (if section markers detected)
+        2. Between paragraphs (double newlines)
+        3. Between sentences (period, exclamation, question mark)
+
+        NEVER splits within tables, figures, or lists (these should be handled
+        by their respective chunkers).
 
         Args:
             block: The text block to split.
             chunk_type: The chunk type for the block.
             max_tokens: Maximum tokens per chunk.
+            extracted_document: Optional extracted document for context.
 
         Returns:
             List of LDUs from the split block.
         """
         import re
 
-        # Split on sentence boundaries (period, exclamation, question mark)
-        sentences = re.split(r"([.!?]\s+)", block.content)
+        content = block.content
+        split_strategy = self.config.get("split_strategy", "semantic")
+
+        # Strategy: semantic (preferred) - tries sections > paragraphs > sentences
+        if split_strategy == "semantic":
+            chunks = self._split_semantic(
+                content, block, chunk_type, max_tokens
+            )
+        elif split_strategy == "greedy":
+            # Greedy: just fill up to max_tokens, split at any sentence boundary
+            chunks = self._split_greedy(content, block, chunk_type, max_tokens)
+        elif split_strategy == "balanced":
+            # Balanced: prefer paragraphs, fall back to sentences
+            chunks = self._split_balanced(content, block, chunk_type, max_tokens)
+        else:
+            # Default to semantic
+            chunks = self._split_semantic(content, block, chunk_type, max_tokens)
+
+        return chunks
+
+    def _split_semantic(
+        self, content: str, block, chunk_type: str, max_tokens: int
+    ) -> List[LDU]:
+        """Split content using semantic boundaries (sections > paragraphs > sentences).
+
+        Args:
+            content: Text content to split.
+            block: Original text block.
+            chunk_type: Chunk type.
+            max_tokens: Maximum tokens per chunk.
+
+        Returns:
+            List of LDUs.
+        """
         chunks = []
+
+        # First, try splitting by sections (double newlines with potential headers)
+        # Pattern: \n\n followed by potential section markers
+        section_pattern = r"\n\n+(?=\d+\.\s+[A-Z]|##+|Chapter|Section|Part\s+\d+)"
+        sections = re.split(section_pattern, content)
+
+        if len(sections) > 1:
+            # We have sections, split at section boundaries
+            for section in sections:
+                section = section.strip()
+                if not section:
+                    continue
+
+                section_tokens = self.token_counter.count(section)
+                if section_tokens <= max_tokens:
+                    chunks.append(
+                        self._create_chunk_from_block(
+                            section, block, chunk_type, section_tokens
+                        )
+                    )
+                else:
+                    # Section too large, split by paragraphs
+                    sub_chunks = self._split_by_paragraphs(
+                        section, block, chunk_type, max_tokens
+                    )
+                    chunks.extend(sub_chunks)
+        else:
+            # No clear sections, try paragraphs
+            chunks = self._split_by_paragraphs(content, block, chunk_type, max_tokens)
+
+        return chunks
+
+    def _split_by_paragraphs(
+        self, content: str, block, chunk_type: str, max_tokens: int
+    ) -> List[LDU]:
+        """Split content by paragraphs (double newlines).
+
+        Args:
+            content: Text content to split.
+            block: Original text block.
+            chunk_type: Chunk type.
+            max_tokens: Maximum tokens per chunk.
+
+        Returns:
+            List of LDUs.
+        """
+        chunks = []
+        paragraphs = re.split(r"\n\n+", content)
+
+        current_chunk = ""
+        current_tokens = 0
+
+        for para in paragraphs:
+            para = para.strip()
+            if not para:
+                continue
+
+            para_tokens = self.token_counter.count(para)
+
+            if para_tokens > max_tokens:
+                # Paragraph itself is too large, split by sentences
+                if current_chunk:
+                    chunks.append(
+                        self._create_chunk_from_block(
+                            current_chunk.strip(), block, chunk_type, current_tokens
+                        )
+                    )
+                    current_chunk = ""
+                    current_tokens = 0
+
+                sub_chunks = self._split_by_sentences(
+                    para, block, chunk_type, max_tokens
+                )
+                chunks.extend(sub_chunks)
+            elif current_tokens + para_tokens > max_tokens and current_chunk:
+                # Adding this paragraph would exceed limit, finalize current chunk
+                chunks.append(
+                    self._create_chunk_from_block(
+                        current_chunk.strip(), block, chunk_type, current_tokens
+                    )
+                )
+                current_chunk = para
+                current_tokens = para_tokens
+            else:
+                # Add paragraph to current chunk
+                if current_chunk:
+                    current_chunk += "\n\n" + para
+                else:
+                    current_chunk = para
+                current_tokens += para_tokens
+
+        # Add remaining content
+        if current_chunk.strip():
+            chunks.append(
+                self._create_chunk_from_block(
+                    current_chunk.strip(), block, chunk_type, current_tokens
+                )
+            )
+
+        return chunks
+
+    def _split_by_sentences(
+        self, content: str, block, chunk_type: str, max_tokens: int
+    ) -> List[LDU]:
+        """Split content by sentences (period, exclamation, question mark).
+
+        Args:
+            content: Text content to split.
+            block: Original text block.
+            chunk_type: Chunk type.
+            max_tokens: Maximum tokens per chunk.
+
+        Returns:
+            List of LDUs.
+        """
+        chunks = []
+        # Split on sentence boundaries, preserving the punctuation
+        sentences = re.split(r"([.!?]\s+)", content)
+
         current_chunk = ""
         current_tokens = 0
 
         for sentence in sentences:
-            sentence_tokens = len(sentence) // 4
+            if not sentence.strip():
+                continue
+
+            sentence_tokens = self.token_counter.count(sentence)
+
             if current_tokens + sentence_tokens > max_tokens and current_chunk:
                 # Create chunk from accumulated content
-                ldu = LDU(
-                    content=current_chunk.strip(),
-                    chunk_type=chunk_type,
-                    page_refs=[block.page_num],
-                    bounding_box={
-                        "x0": block.bbox.x0,
-                        "y0": block.bbox.y0,
-                        "x1": block.bbox.x1,
-                        "y1": block.bbox.y1,
-                    },
-                    token_count=current_tokens,
+                chunks.append(
+                    self._create_chunk_from_block(
+                        current_chunk.strip(), block, chunk_type, current_tokens
+                    )
                 )
-                chunks.append(ldu)
                 current_chunk = sentence
                 current_tokens = sentence_tokens
             else:
@@ -454,21 +617,72 @@ class ChunkingEngine:
 
         # Add remaining content
         if current_chunk.strip():
-            ldu = LDU(
-                content=current_chunk.strip(),
-                chunk_type=chunk_type,
-                page_refs=[block.page_num],
-                bounding_box={
-                    "x0": block.bbox.x0,
-                    "y0": block.bbox.y0,
-                    "x1": block.bbox.x1,
-                    "y1": block.bbox.y1,
-                },
-                token_count=current_tokens,
+            chunks.append(
+                self._create_chunk_from_block(
+                    current_chunk.strip(), block, chunk_type, current_tokens
+                )
             )
-            chunks.append(ldu)
 
         return chunks
+
+    def _split_greedy(
+        self, content: str, block, chunk_type: str, max_tokens: int
+    ) -> List[LDU]:
+        """Greedy splitting: fill up to max_tokens, split at sentence boundaries.
+
+        Args:
+            content: Text content to split.
+            block: Original text block.
+            chunk_type: Chunk type.
+            max_tokens: Maximum tokens per chunk.
+
+        Returns:
+            List of LDUs.
+        """
+        return self._split_by_sentences(content, block, chunk_type, max_tokens)
+
+    def _split_balanced(
+        self, content: str, block, chunk_type: str, max_tokens: int
+    ) -> List[LDU]:
+        """Balanced splitting: prefer paragraphs, fall back to sentences.
+
+        Args:
+            content: Text content to split.
+            block: Original text block.
+            chunk_type: Chunk type.
+            max_tokens: Maximum tokens per chunk.
+
+        Returns:
+            List of LDUs.
+        """
+        return self._split_by_paragraphs(content, block, chunk_type, max_tokens)
+
+    def _create_chunk_from_block(
+        self, content: str, block, chunk_type: str, token_count: int
+    ) -> LDU:
+        """Create an LDU from a text block.
+
+        Args:
+            content: Chunk content.
+            block: Original text block.
+            chunk_type: Chunk type.
+            token_count: Token count for the chunk.
+
+        Returns:
+            LDU instance.
+        """
+        return LDU(
+            content=content,
+            chunk_type=chunk_type,
+            page_refs=[block.page_num],
+            bounding_box={
+                "x0": block.bbox.x0,
+                "y0": block.bbox.y0,
+                "x1": block.bbox.x1,
+                "y1": block.bbox.y1,
+            },
+            token_count=token_count,
+        )
 
     def _table_to_text(self, table) -> str:
         """Convert a table structure to a readable text representation.

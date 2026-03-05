@@ -41,7 +41,17 @@ chunking:
 
   # Minimum tokens per chunk (chunks smaller than this may be merged).
   # Set to 0 to disable merging.
-  min_tokens_per_chunk: 0
+  min_tokens_per_chunk: 50
+
+  # Token counting model for tiktoken (if available).
+  # Options: "gpt-4", "gpt-3.5-turbo", "cl100k_base", etc.
+  token_model: "gpt-4"
+
+  # Chunk splitting strategy:
+  # - "semantic": Priority: sections > paragraphs > sentences (recommended)
+  # - "balanced": Prefer paragraphs, fall back to sentences
+  # - "greedy": Fill up to max_tokens, split at any sentence boundary
+  split_strategy: "semantic"
 
   # Rules enforcement:
   # - strict: All rules must pass, otherwise raise ValueError

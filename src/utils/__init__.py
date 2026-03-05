@@ -17,6 +17,7 @@ from src.utils.figure_chunker import FigureChunker, identify_figure_captions
 from src.utils.list_chunker import ListChunker, identify_lists
 from src.utils.reference_resolver import ReferenceResolver, resolve_cross_references
 from src.utils.section_chunker import SectionChunker, build_section_hierarchy
+from src.utils.token_counter import TokenCounter, count_tokens, get_token_counter
 from src.utils.table_chunker import TableChunker, identify_table_structures
 
 __all__ = [
@@ -39,4 +40,7 @@ __all__ = [
     "build_section_hierarchy",
     "TableChunker",
     "identify_table_structures",
+    "TokenCounter",
+    "count_tokens",
+    "get_token_counter",
 ]
