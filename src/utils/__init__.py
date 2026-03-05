@@ -14,6 +14,7 @@ from src.utils.content_hasher import (
     verify_hash,
 )
 from src.utils.figure_chunker import FigureChunker, identify_figure_captions
+from src.utils.list_chunker import ListChunker, identify_lists
 from src.utils.table_chunker import TableChunker, identify_table_structures
 
 __all__ = [
@@ -28,6 +29,8 @@ __all__ = [
     "verify_hash",
     "FigureChunker",
     "identify_figure_captions",
+    "ListChunker",
+    "identify_lists",
     "TableChunker",
     "identify_table_structures",
 ]

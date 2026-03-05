@@ -337,9 +337,11 @@ class ChunkValidator:
     def validate_rule_3(self, chunks: List[LDU]) -> bool:
         """Rule 3: Numbered lists intact.
 
-        Numbered lists should be kept as single LDUs unless they exceed
-        max_tokens. If split, the split should occur at list item boundaries,
-        not mid-item.
+        This rule ensures:
+        1. Lists are kept as single LDUs when possible
+        2. If split, split occurs at item boundaries, not within items
+        3. List items are complete (not split mid-sentence)
+        4. Split lists have proper metadata indicating they're partial
 
         Args:
             chunks: List of LDUs to validate.
@@ -347,43 +349,117 @@ class ChunkValidator:
         Returns:
             True if rule is satisfied, False otherwise.
         """
+        from src.utils.list_chunker import ListChunker
+
         list_chunks = [c for c in chunks if c.chunk_type == "list"]
+        list_chunker = ListChunker()
+
+        if not list_chunks:
+            logger.debug("Rule 3 passed: No list chunks to validate")
+            return True
 
         for chunk in list_chunks:
+            # Check 1: List metadata should indicate it's a list
+            if not chunk.metadata.get("is_list", False):
+                logger.warning(
+                    f"List chunk {chunk.content_hash[:8]} missing 'is_list' metadata"
+                )
+                return False
+
+            # Check 2: List type should be specified
+            list_type = chunk.metadata.get("list_type")
+            if list_type not in ["numbered", "bulleted"]:
+                logger.warning(
+                    f"List chunk {chunk.content_hash[:8]} has invalid list_type: {list_type}"
+                )
+                return False
+
+            # Check 3: Verify list items are complete
             content = chunk.content.strip()
-
-            # Check if content looks like a list (starts with number or bullet)
-            is_numbered = any(content.startswith(f"{i}.") for i in range(1, 100))
-            is_bulleted = content.startswith(("-", "*", "•"))
-
-            if not (is_numbered or is_bulleted):
-                # Might be a false positive classification, but not a violation
-                continue
-
-            # Check that list items are complete (heuristic: ends with period or newline)
-            # This is a simplified check - in practice, you'd want more sophisticated
-            # parsing to ensure list items aren't split mid-sentence
             lines = content.split("\n")
+
             for line in lines:
                 line = line.strip()
                 if not line:
                     continue
-                # If a line starts with a list marker but doesn't end properly,
-                # it might be a split item
-                if (line.startswith(("-", "*", "•")) or any(
-                    line.startswith(f"{i}.") for i in range(1, 100)
-                )):
-                    # Check if line seems incomplete (very short, no punctuation)
-                    if len(line) < 10 and not any(
-                        p in line for p in [".", "!", "?", ";", ":"]
+
+                # Check if line is a list item
+                line_info = list_chunker._analyze_list_item(line)
+                if line_info["is_list_item"]:
+                    # Verify item is complete (not split mid-sentence)
+                    # Items should have some content after the marker
+                    marker_len = len(line_info["list_marker"])
+                    item_content = line[marker_len:].strip()
+
+                    if not item_content:
+                        logger.warning(
+                            f"List chunk {chunk.content_hash[:8]} has empty list item"
+                        )
+                        return False
+
+                    # Check if item seems incomplete (very short, no punctuation, no space)
+                    if (
+                        len(item_content) < 5
+                        and not any(p in item_content for p in [".", "!", "?", ";", ":"])
+                        and " " not in item_content
                     ):
                         logger.warning(
-                            f"List chunk {chunk.content_hash[:8]} may have incomplete items"
+                            f"List chunk {chunk.content_hash[:8]} may have incomplete item: "
+                            f"{line[:50]}..."
                         )
                         # This is a warning, not a hard failure
                         pass
 
-        logger.debug(f"Rule 3 passed: {len(list_chunks)} list chunks validated")
+            # Check 4: If this is a partial list (split), verify it has proper metadata
+            is_partial = chunk.metadata.get("is_partial_list", False)
+            if is_partial:
+                if "chunk_index" not in chunk.metadata:
+                    logger.warning(
+                        f"Partial list chunk {chunk.content_hash[:8]} missing chunk_index"
+                    )
+                    return False
+                if "total_chunks" not in chunk.metadata:
+                    logger.warning(
+                        f"Partial list chunk {chunk.content_hash[:8]} missing total_chunks"
+                    )
+                    return False
+
+                # Verify item count is reasonable
+                item_count = chunk.metadata.get("item_count", 0)
+                if item_count == 0:
+                    logger.warning(
+                        f"Partial list chunk {chunk.content_hash[:8]} has zero items"
+                    )
+                    return False
+
+            # Check 5: Verify list structure integrity
+            # All items should start with the same marker type
+            item_markers = []
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                line_info = list_chunker._analyze_list_item(line)
+                if line_info["is_list_item"]:
+                    item_markers.append(line_info["list_marker"])
+
+            if item_markers:
+                # Check consistency (all markers should be similar for same list type)
+                first_marker = item_markers[0]
+                inconsistent_count = sum(
+                    1 for m in item_markers if m != first_marker
+                )
+                # Allow some variation (e.g., different numbering)
+                if inconsistent_count > len(item_markers) * 0.3:
+                    logger.warning(
+                        f"List chunk {chunk.content_hash[:8]} has inconsistent markers"
+                    )
+                    # This is a warning, not a failure
+                    pass
+
+        logger.debug(
+            f"Rule 3 passed: {len(list_chunks)} list chunks validated"
+        )
         return True
 
     def validate_rule_4(self, chunks: List[LDU]) -> bool:

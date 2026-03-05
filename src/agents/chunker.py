@@ -24,6 +24,7 @@ from src.models.extracted_document import ExtractedDocument
 from src.models.ldu import CrossReference, LDU
 from src.utils.chunk_validator import ChunkValidator
 from src.utils.figure_chunker import FigureChunker
+from src.utils.list_chunker import ListChunker
 from src.utils.table_chunker import TableChunker
 
 logger = logging.getLogger(__name__)
@@ -52,8 +53,15 @@ class ChunkingEngine:
         self.config = self.load_config()
         self.validator = ChunkValidator()
         max_tokens = self.config.get("max_tokens_per_chunk", 512)
+        preserve_lists = self.config.get("preserve_lists", True)
+        list_split_strategy = self.config.get("list_split_strategy", "by_item")
         self.table_chunker = TableChunker(max_tokens_per_chunk=max_tokens)
         self.figure_chunker = FigureChunker()
+        self.list_chunker = ListChunker(
+            max_tokens_per_chunk=max_tokens,
+            preserve_lists=preserve_lists,
+            list_split_strategy=list_split_strategy,
+        )
 
     def load_config(self) -> dict:
         """Load chunking rules from the configuration file.
@@ -141,6 +149,7 @@ class ChunkingEngine:
         """Chunk text blocks into paragraphs, headers, and lists.
 
         Skips text blocks that are captions and have been paired with figures.
+        Groups list items together before chunking.
 
         Args:
             extracted_document: The extracted document.
@@ -153,32 +162,76 @@ class ChunkingEngine:
         chunks = []
         max_tokens = self.config.get("max_tokens_per_chunk", 512)
         used_caption_blocks = used_caption_blocks or set()
+        preserve_lists = self.config.get("preserve_lists", True)
 
-        for block in extracted_document.text_blocks:
-            # Skip text blocks that are captions and have been used by figures
-            if id(block) in used_caption_blocks:
-                logger.debug(
-                    f"Skipping text block on page {block.page_num} - used as figure caption"
-                )
-                continue
+        # Filter out used caption blocks
+        available_blocks = [
+            block
+            for block in extracted_document.text_blocks
+            if id(block) not in used_caption_blocks
+        ]
 
-            # Also check if this text block looks like a caption and is near a figure
-            # If so, skip it (it should have been paired with a figure)
+        # Also filter out caption blocks that are paired with figures
+        filtered_blocks = []
+        for block in available_blocks:
             if self.figure_chunker._is_caption_text(block.content):
                 # Check if there's a nearby figure that might use this as caption
+                is_paired = False
                 for figure in extracted_document.figures:
                     if self.figure_chunker._is_spatially_proximate(figure, block):
                         logger.debug(
                             f"Skipping caption text block on page {block.page_num} - "
                             f"likely paired with figure"
                         )
-                        # Mark as used to prevent double-processing
-                        used_caption_blocks.add(id(block))
+                        is_paired = True
                         break
+                if not is_paired:
+                    filtered_blocks.append(block)
+            else:
+                filtered_blocks.append(block)
+
+        # Identify and group lists if preserve_lists is enabled
+        if preserve_lists:
+            list_items = self.list_chunker.identify_list_items(filtered_blocks)
+            list_groups = self.list_chunker.group_list_items(list_items)
+
+            # Track which blocks are part of lists
+            list_block_ids = set()
+            for group in list_groups:
+                for block, _ in group:
+                    list_block_ids.add(id(block))
+
+            # Process lists
+            for group in list_groups:
+                if not group:
+                    continue
+
+                # Determine list type from first item
+                _, first_info = group[0]
+                list_type = first_info["list_type"]
+
+                # Estimate total tokens for the list
+                total_content = "\n".join(block.content for block, _ in group)
+                total_tokens = len(total_content) // 4
+
+                if total_tokens <= max_tokens:
+                    # Create single LDU for entire list
+                    ldu = self.list_chunker.merge_list_items(group, list_type)
+                    chunks.append(ldu)
                 else:
-                    # Not near any figure, so it's an orphaned caption
-                    # We'll still chunk it, but validator will flag it
-                    pass
+                    # Split large list at item boundaries
+                    split_chunks = self.list_chunker.split_large_list(group, list_type)
+                    chunks.extend(split_chunks)
+
+            # Process non-list blocks
+            non_list_blocks = [
+                block for block in filtered_blocks if id(block) not in list_block_ids
+            ]
+        else:
+            non_list_blocks = filtered_blocks
+
+        # Process remaining text blocks (non-lists)
+        for block in non_list_blocks:
             # Determine chunk type based on content heuristics
             chunk_type = self._classify_text_block(block.content)
 

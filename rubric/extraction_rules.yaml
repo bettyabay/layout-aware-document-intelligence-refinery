@@ -58,3 +58,13 @@ chunking:
   # - enabled: Assign parent_section to chunks based on preceding headers
   # - disabled: Skip parent section assignment
   assign_parent_sections: true
+
+  # List preservation:
+  # - true: Keep lists as single LDUs when possible
+  # - false: Allow lists to be split like regular text
+  preserve_lists: true
+
+  # List splitting strategy:
+  # - "by_item": Split between list items (preserves item integrity)
+  # - "by_sublist": Split by sublists (groups of related items)
+  list_split_strategy: "by_item"
