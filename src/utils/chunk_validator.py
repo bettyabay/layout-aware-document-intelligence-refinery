@@ -57,8 +57,11 @@ class ChunkValidator:
     def validate_rule_1(self, chunks: List[LDU]) -> bool:
         """Rule 1: No table cell split from header.
 
-        Tables must be atomic chunks. No table should have its header row
-        separated from its data rows in different chunks.
+        This rule ensures:
+        1. Tables are atomic chunks (or properly split large tables)
+        2. Headers are always preserved with their data rows
+        3. No table cell is separated from its header context
+        4. Split tables are properly marked and include headers in each chunk
 
         Args:
             chunks: List of LDUs to validate.
@@ -68,38 +71,172 @@ class ChunkValidator:
         """
         table_chunks = [c for c in chunks if c.chunk_type == "table"]
 
+        if not table_chunks:
+            logger.debug("Rule 1 passed: No table chunks to validate")
+            return True
+
+        # Group table chunks by page and spatial proximity to detect split tables
+        table_groups = self._group_table_chunks_by_proximity(table_chunks)
+
         for chunk in table_chunks:
-            # Check that table metadata includes headers
+            # Check 1: Table metadata includes headers
             if "table_headers" not in chunk.metadata:
                 logger.warning(
                     f"Table chunk {chunk.content_hash[:8]} missing table_headers metadata"
                 )
                 return False
 
-            # Check that content includes header information
-            # (simplified: just check that content is not empty)
+            # Check 2: Content is not empty
             if not chunk.content.strip():
                 logger.warning(
                     f"Table chunk {chunk.content_hash[:8]} has empty content"
                 )
                 return False
 
-            # Check that headers are present in content
+            # Check 3: Headers are present in content
             headers = chunk.metadata.get("table_headers", [])
             if headers:
-                # At least one header should appear in the content
                 content_lower = chunk.content.lower()
                 header_found = any(
                     header.lower() in content_lower for header in headers if header
                 )
-                if not header_found and len(headers) > 0:
+                if not header_found:
                     logger.warning(
-                        f"Table chunk {chunk.content_hash[:8]} headers not found in content"
+                        f"Table chunk {chunk.content_hash[:8]} headers not found in content. "
+                        f"Headers: {headers[:3]}..."
                     )
                     return False
 
-        logger.debug(f"Rule 1 passed: {len(table_chunks)} table chunks validated")
+            # Check 4: If this is a partial table (split), verify it has proper metadata
+            is_partial = chunk.metadata.get("is_partial_table", False)
+            if is_partial:
+                if "chunk_index" not in chunk.metadata:
+                    logger.warning(
+                        f"Partial table chunk {chunk.content_hash[:8]} missing chunk_index"
+                    )
+                    return False
+                if "total_chunks" not in chunk.metadata:
+                    logger.warning(
+                        f"Partial table chunk {chunk.content_hash[:8]} missing total_chunks"
+                    )
+                    return False
+                # Verify headers are still present in partial chunks
+                if not headers:
+                    logger.warning(
+                        f"Partial table chunk {chunk.content_hash[:8]} missing headers"
+                    )
+                    return False
+
+            # Check 5: Verify table structure integrity
+            # Content should start with headers if headers exist
+            if headers:
+                content_lines = chunk.content.split("\n")
+                first_line = content_lines[0] if content_lines else ""
+                # Check if first line contains headers (allowing for formatting)
+                first_line_lower = first_line.lower()
+                header_match_count = sum(
+                    1
+                    for header in headers
+                    if header and header.lower() in first_line_lower
+                )
+                # At least 50% of headers should appear in first line
+                if header_match_count < len(headers) * 0.5:
+                    logger.warning(
+                        f"Table chunk {chunk.content_hash[:8]} headers not at start of content. "
+                        f"Only {header_match_count}/{len(headers)} headers found in first line."
+                    )
+                    # This is a warning, not a hard failure, as formatting may vary
+                    pass
+
+        # Check 6: Verify no table appears in multiple chunks without proper splitting
+        for group in table_groups:
+            if len(group) > 1:
+                # Multiple chunks for same table - verify they're properly split
+                partial_count = sum(
+                    1 for c in group if c.metadata.get("is_partial_table", False)
+                )
+                if partial_count > 0 and partial_count != len(group):
+                    logger.warning(
+                        f"Table group has mixed partial/non-partial chunks. "
+                        f"This may indicate improper splitting."
+                    )
+                    return False
+
+        logger.debug(
+            f"Rule 1 passed: {len(table_chunks)} table chunks validated, "
+            f"{len(table_groups)} table groups identified"
+        )
         return True
+
+    def _group_table_chunks_by_proximity(
+        self, table_chunks: List[LDU]
+    ) -> List[List[LDU]]:
+        """Group table chunks that likely belong to the same table.
+
+        This helps detect when a table has been split across multiple chunks.
+
+        Args:
+            table_chunks: List of table LDUs.
+
+        Returns:
+            List of groups, where each group is a list of chunks that likely
+            belong to the same table.
+        """
+        groups = []
+        SPATIAL_THRESHOLD = 50.0  # PDF points
+        PAGE_TOLERANCE = 1  # Allow adjacent pages
+
+        for chunk in table_chunks:
+            # Try to find an existing group this chunk belongs to
+            matched_group = None
+            for group in groups:
+                # Check if chunk is spatially close to any chunk in the group
+                for group_chunk in group:
+                    # Same page or adjacent pages
+                    page_match = any(
+                        abs(p1 - p2) <= PAGE_TOLERANCE
+                        for p1 in chunk.page_refs
+                        for p2 in group_chunk.page_refs
+                    )
+                    if not page_match:
+                        continue
+
+                    # Check spatial proximity
+                    bbox1 = chunk.bounding_box
+                    bbox2 = group_chunk.bounding_box
+
+                    center1_x = (bbox1.get("x0", 0) + bbox1.get("x1", 0)) / 2
+                    center1_y = (bbox1.get("y0", 0) + bbox1.get("y1", 0)) / 2
+                    center2_x = (bbox2.get("x0", 0) + bbox2.get("x1", 0)) / 2
+                    center2_y = (bbox2.get("y0", 0) + bbox2.get("y1", 0)) / 2
+
+                    distance = (
+                        (center1_x - center2_x) ** 2 + (center1_y - center2_y) ** 2
+                    ) ** 0.5
+
+                    # Check if headers match (same table should have same headers)
+                    headers1 = chunk.metadata.get("table_headers", [])
+                    headers2 = group_chunk.metadata.get("table_headers", [])
+                    headers_match = headers1 == headers2
+
+                    if (
+                        page_match
+                        and distance < SPATIAL_THRESHOLD
+                        and headers_match
+                    ):
+                        matched_group = group
+                        break
+
+                if matched_group:
+                    break
+
+            if matched_group:
+                matched_group.append(chunk)
+            else:
+                # Create new group
+                groups.append([chunk])
+
+        return groups
 
     def validate_rule_2(self, chunks: List[LDU]) -> bool:
         """Rule 2: Figure caption as metadata.

@@ -23,6 +23,7 @@ import yaml
 from src.models.extracted_document import ExtractedDocument
 from src.models.ldu import CrossReference, LDU
 from src.utils.chunk_validator import ChunkValidator
+from src.utils.table_chunker import TableChunker
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,8 @@ class ChunkingEngine:
         self.config_path = Path(config_path)
         self.config = self.load_config()
         self.validator = ChunkValidator()
+        max_tokens = self.config.get("max_tokens_per_chunk", 512)
+        self.table_chunker = TableChunker(max_tokens_per_chunk=max_tokens)
 
     def load_config(self) -> dict:
         """Load chunking rules from the configuration file.
@@ -167,9 +170,13 @@ class ChunkingEngine:
         return chunks
 
     def _chunk_tables(self, extracted_document: ExtractedDocument) -> List[LDU]:
-        """Chunk tables as atomic units.
+        """Chunk tables as atomic units using TableChunker.
 
-        Tables are never split - they are always kept as single LDUs.
+        Tables are processed using specialized table chunking logic that ensures:
+        - Headers are always preserved with data rows
+        - Tables are kept as single LDUs when possible
+        - Large tables are only split at logical boundaries (row boundaries),
+          never between cells or between headers and data
 
         Args:
             extracted_document: The extracted document.
@@ -178,32 +185,33 @@ class ChunkingEngine:
             List of table LDUs.
         """
         chunks = []
+        max_tokens = self.config.get("max_tokens_per_chunk", 512)
 
         for table in extracted_document.tables:
-            # Convert table to structured text representation
-            content = self._table_to_text(table)
+            # Parse table structure
+            structure = self.table_chunker.parse_table_structure(table)
 
-            # Estimate token count
+            # Estimate token count for the entire table
+            grouped_cells = self.table_chunker.group_table_cells(table)
+            content = self.table_chunker._table_to_structured_text(
+                table, grouped_cells
+            )
             token_count = len(content) // 4
 
-            ldu = LDU(
-                content=content,
-                chunk_type="table",
-                page_refs=[table.page_num],
-                bounding_box={
-                    "x0": table.bbox.x0,
-                    "y0": table.bbox.y0,
-                    "x1": table.bbox.x1,
-                    "y1": table.bbox.y1,
-                },
-                token_count=token_count,
-                metadata={
-                    "table_headers": table.headers,
-                    "row_count": len(table.rows),
-                    "column_count": len(table.headers),
-                },
-            )
-            chunks.append(ldu)
+            # If table fits in one chunk, create single LDU
+            if token_count <= max_tokens:
+                ldu = self.table_chunker.create_table_chunk(table, structure)
+                chunks.append(ldu)
+            else:
+                # Table is too large - split at logical boundaries
+                logger.info(
+                    f"Table on page {table.page_num} exceeds max_tokens "
+                    f"({token_count} > {max_tokens}). Splitting at logical boundaries."
+                )
+                split_chunks = self.table_chunker.split_large_table(
+                    table, structure
+                )
+                chunks.extend(split_chunks)
 
         return chunks
 

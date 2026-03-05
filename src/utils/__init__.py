@@ -13,6 +13,7 @@ from src.utils.content_hasher import (
     generate_spatial_hash,
     verify_hash,
 )
+from src.utils.table_chunker import TableChunker, identify_table_structures
 
 __all__ = [
     "character_density_score",
@@ -24,4 +25,6 @@ __all__ = [
     "generate_content_hash",
     "generate_spatial_hash",
     "verify_hash",
+    "TableChunker",
+    "identify_table_structures",
 ]
