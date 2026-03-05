@@ -13,7 +13,23 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 
-ChunkType = Literal["paragraph", "table", "figure", "list", "header"]
+ChunkType = Literal["paragraph", "table", "figure", "list", "header", "footnote"]
+
+
+class CrossReference(BaseModel):
+    """Cross-reference to another chunk or document element.
+
+    Attributes:
+        target_id: ID of the referenced chunk (content_hash or custom ID).
+        reference_type: Type of reference (e.g., "table", "figure", "section").
+        anchor_text: The text that triggered the reference (e.g., "see Table 3").
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    target_id: str = Field(..., description="ID of the referenced chunk")
+    reference_type: str = Field(..., description="Type of reference")
+    anchor_text: str = Field(..., description="Text that triggered the reference")
 
 
 class LDU(BaseModel):
@@ -25,11 +41,14 @@ class LDU(BaseModel):
         page_refs: 1-indexed page numbers where this chunk appears.
         bounding_box: Spatial bounding box (typically of the dominant region),
             encoded as a dictionary with keys like ``x0``, ``y0``, ``x1``, ``y1``,
-            and ``page``.
+            and optionally ``page``.
         parent_section: Optional title of the parent section.
         token_count: Token count estimate for this chunk (for budgeting).
         content_hash: Spatial hash of the content and coordinates used for
             provenance and deduplication.
+        metadata: Additional metadata (e.g., captions, headers, formatting).
+        children: List of content hashes or IDs of child chunks.
+        cross_references: List of cross-references to other chunks or elements.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -62,6 +81,28 @@ class LDU(BaseModel):
         description=(
             "Spatial hash of the chunk content and coordinates. If not provided, "
             "it is computed automatically."
+        ),
+    )
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Additional metadata for this chunk. Common keys include: "
+            "'caption' (for figures), 'header_level' (for headers), "
+            "'list_type' (for lists), 'table_headers' (for tables)."
+        ),
+    )
+    children: List[str] = Field(
+        default_factory=list,
+        description=(
+            "List of content hashes or IDs of child chunks. Used for hierarchical "
+            "relationships (e.g., section header -> paragraph chunks)."
+        ),
+    )
+    cross_references: List[CrossReference] = Field(
+        default_factory=list,
+        description=(
+            "List of cross-references to other chunks or document elements. "
+            "Resolved references (e.g., 'see Table 3') are stored here."
         ),
     )
 
@@ -111,6 +152,7 @@ class LDU(BaseModel):
 
 __all__ = [
     "ChunkType",
+    "CrossReference",
     "LDU",
 ]
 

@@ -25,3 +25,36 @@ layout_strategy:
     # Reserved for future Docling-specific knobs (e.g., model variants).
     model_variant: "default"
 
+# Chunking rules configuration.
+#
+# This section defines the rules and thresholds for the semantic chunking engine.
+# The chunking engine enforces five core rules:
+# 1. No table cell split from header
+# 2. Figure caption as metadata
+# 3. Numbered lists intact
+# 4. Section headers as parent metadata
+# 5. Cross-reference resolution
+chunking:
+  # Maximum tokens per chunk before splitting.
+  # Chunks exceeding this will be split on sentence boundaries.
+  max_tokens_per_chunk: 512
+
+  # Minimum tokens per chunk (chunks smaller than this may be merged).
+  # Set to 0 to disable merging.
+  min_tokens_per_chunk: 0
+
+  # Rules enforcement:
+  # - strict: All rules must pass, otherwise raise ValueError
+  # - warn: Log warnings but continue processing
+  # - relaxed: Only validate critical rules
+  enforcement_mode: "strict"
+
+  # Cross-reference resolution:
+  # - enabled: Resolve references like "see Table 3" to actual chunks
+  # - disabled: Skip cross-reference resolution
+  resolve_cross_references: true
+
+  # Parent section assignment:
+  # - enabled: Assign parent_section to chunks based on preceding headers
+  # - disabled: Skip parent section assignment
+  assign_parent_sections: true

@@ -20,7 +20,7 @@ from .extracted_document import (
     Table,
     TextBlock,
 )
-from .ldu import ChunkType, LDU
+from .ldu import ChunkType, CrossReference, LDU
 from .page_index import DataType, PageIndex, Section
 from .provenance import ProvenanceChain
 
@@ -40,6 +40,7 @@ __all__ = [
     "ExtractedDocument",
     # Logical Document Units
     "ChunkType",
+    "CrossReference",
     "LDU",
     # PageIndex
     "DataType",
