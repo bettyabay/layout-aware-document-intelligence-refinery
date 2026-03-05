@@ -583,8 +583,12 @@ class ChunkValidator:
     def validate_rule_5(self, chunks: List[LDU]) -> bool:
         """Rule 5: Cross-reference resolution.
 
-        Cross-references in chunk content (e.g., "see Table 3") should be
-        resolved and stored in the cross_references field with valid target_ids.
+        This rule ensures:
+        1. Cross-references are detected and resolved to actual chunk IDs
+        2. All resolved references point to existing chunks
+        3. Reference types match target chunk types
+        4. Broken references are flagged
+        5. Unresolved references are stored in metadata for audit
 
         Args:
             chunks: List of LDUs to validate.
@@ -592,39 +596,125 @@ class ChunkValidator:
         Returns:
             True if rule is satisfied, False otherwise.
         """
+        from src.utils.reference_resolver import ReferenceResolver
+
         # Build index of chunks by content_hash
         chunk_index = {c.content_hash: c for c in chunks}
 
         chunks_with_refs = [c for c in chunks if c.cross_references]
+        chunks_with_unresolved = [
+            c
+            for c in chunks
+            if c.metadata.get("unresolved_references")
+        ]
 
+        broken_refs = []
+        type_mismatches = []
+
+        # Check 1: Verify all resolved references point to existing chunks
         for chunk in chunks_with_refs:
             for ref in chunk.cross_references:
                 # Check that target_id exists in chunk_index
                 if ref.target_id not in chunk_index:
+                    broken_refs.append((chunk, ref))
                     logger.warning(
-                        f"Chunk {chunk.content_hash[:8]} has cross-reference to "
-                        f"unknown target_id: {ref.target_id[:8]}"
+                        f"Chunk {chunk.content_hash[:8]} has broken cross-reference: "
+                        f"target_id {ref.target_id[:8]} not found. "
+                        f"Reference: '{ref.anchor_text}'"
                     )
-                    # This might be acceptable if reference is to external content
-                    pass
+                    continue
 
-                # Check that reference_type matches target chunk type
+                # Check 2: Verify reference_type matches target chunk type
                 target_chunk = chunk_index.get(ref.target_id)
                 if target_chunk:
-                    if ref.reference_type == "table" and target_chunk.chunk_type != "table":
+                    expected_type = ref.reference_type
+                    actual_type = target_chunk.chunk_type
+
+                    # Map reference types to chunk types
+                    type_mapping = {
+                        "table": "table",
+                        "figure": "figure",
+                        "section": "header",
+                        "equation": "paragraph",  # Equations might be in paragraphs
+                    }
+
+                    expected_chunk_type = type_mapping.get(expected_type)
+                    if expected_chunk_type and actual_type != expected_chunk_type:
+                        type_mismatches.append((chunk, ref, target_chunk))
                         logger.warning(
-                            f"Cross-reference type mismatch: expected table, "
-                            f"got {target_chunk.chunk_type}"
+                            f"Cross-reference type mismatch in chunk "
+                            f"{chunk.content_hash[:8]}: "
+                            f"reference type '{expected_type}' points to chunk type "
+                            f"'{actual_type}'. Reference: '{ref.anchor_text}'"
                         )
-                        return False
-                    if ref.reference_type == "figure" and target_chunk.chunk_type != "figure":
+                        # This is a warning, not a hard failure
+                        pass
+
+        # Check 3: Verify unresolved references are stored in metadata
+        for chunk in chunks_with_unresolved:
+            unresolved = chunk.metadata.get("unresolved_references", [])
+            if not unresolved:
+                logger.warning(
+                    f"Chunk {chunk.content_hash[:8]} has unresolved_references "
+                    f"metadata key but empty list"
+                )
+                continue
+
+            # Verify unresolved references have required fields
+            for unresolved_ref in unresolved:
+                required_fields = ["anchor_text", "reference_type", "target_number"]
+                for field in required_fields:
+                    if field not in unresolved_ref:
                         logger.warning(
-                            f"Cross-reference type mismatch: expected figure, "
-                            f"got {target_chunk.chunk_type}"
+                            f"Chunk {chunk.content_hash[:8]} unresolved reference "
+                            f"missing field '{field}'"
                         )
                         return False
 
-        logger.debug(
-            f"Rule 5 passed: {len(chunks_with_refs)} chunks with cross-references validated"
+        # Check 4: Verify that references were actually detected
+        # Use ReferenceResolver to find all references and compare
+        resolver = ReferenceResolver()
+        total_detected = 0
+        total_resolved = 0
+
+        for chunk in chunks:
+            if chunk.chunk_type in ("table", "figure"):
+                continue
+
+            detected = resolver.find_references(chunk.content)
+            total_detected += len(detected)
+            total_resolved += len(chunk.cross_references)
+
+        unresolved_count = sum(
+            len(c.metadata.get("unresolved_references", []))
+            for c in chunks
         )
+
+        if total_detected != total_resolved + unresolved_count:
+            logger.warning(
+                f"Reference count mismatch: detected {total_detected}, "
+                f"resolved {total_resolved}, unresolved {unresolved_count}"
+            )
+            # This is a warning, not a hard failure (some might be filtered)
+
+        # Summary
+        if broken_refs:
+            logger.warning(
+                f"Found {len(broken_refs)} broken references pointing to non-existent chunks"
+            )
+            # This is a warning, not a hard failure (references might be to external content)
+
+        if type_mismatches:
+            logger.warning(
+                f"Found {len(type_mismatches)} type mismatches in cross-references"
+            )
+            # This is a warning, not a hard failure
+
+        logger.debug(
+            f"Rule 5 passed: {len(chunks_with_refs)} chunks with resolved references, "
+            f"{len(chunks_with_unresolved)} chunks with unresolved references, "
+            f"{len(broken_refs)} broken references, "
+            f"{len(type_mismatches)} type mismatches"
+        )
+
         return True

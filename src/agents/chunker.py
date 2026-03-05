@@ -25,6 +25,7 @@ from src.models.ldu import CrossReference, LDU
 from src.utils.chunk_validator import ChunkValidator
 from src.utils.figure_chunker import FigureChunker
 from src.utils.list_chunker import ListChunker
+from src.utils.reference_resolver import ReferenceResolver
 from src.utils.section_chunker import SectionChunker
 from src.utils.table_chunker import TableChunker
 
@@ -64,6 +65,7 @@ class ChunkingEngine:
             list_split_strategy=list_split_strategy,
         )
         self.section_chunker = SectionChunker()
+        self.reference_resolver = ReferenceResolver()
 
     def load_config(self) -> dict:
         """Load chunking rules from the configuration file.
@@ -128,8 +130,13 @@ class ChunkingEngine:
         # Process tables as atomic chunks
         chunks.extend(self._chunk_tables(extracted_document))
 
-        # Resolve cross-references
-        chunks = self._resolve_cross_references(chunks)
+        # Resolve cross-references using ReferenceResolver
+        chunks, unresolved = self.reference_resolver.resolve_all_references(chunks)
+        if unresolved:
+            logger.warning(
+                f"Found {sum(len(refs) for refs in unresolved.values())} "
+                f"unresolved references in {len(unresolved)} chunks"
+            )
 
         # Build section hierarchy and assign parent sections
         section_tree = self.section_chunker.build_section_hierarchy(chunks)
@@ -461,68 +468,6 @@ class ChunkingEngine:
             lines.append(" | ".join(str(cell) for cell in row))
         return "\n".join(lines)
 
-    def _resolve_cross_references(self, chunks: List[LDU]) -> List[LDU]:
-        """Resolve cross-references in chunk content.
-
-        Looks for patterns like "see Table 3" or "Figure 2" and attempts to
-        link them to the corresponding chunks.
-
-        Args:
-            chunks: List of chunks to process.
-
-        Returns:
-            Updated chunks with cross_references populated.
-        """
-        import re
-
-        # Build index of chunks by type and content
-        table_chunks = {i: c for i, c in enumerate(chunks) if c.chunk_type == "table"}
-        figure_chunks = {
-            i: c for i, c in enumerate(chunks) if c.chunk_type == "figure"
-        }
-
-        # Pattern to match references like "Table 3", "Figure 2", "see Table 3"
-        table_pattern = re.compile(
-            r"(?:see\s+)?(?:table|Table)\s+(\d+)", re.IGNORECASE
-        )
-        figure_pattern = re.compile(
-            r"(?:see\s+)?(?:figure|Figure|Fig\.?)\s+(\d+)", re.IGNORECASE
-        )
-
-        for chunk in chunks:
-            if chunk.chunk_type in ("table", "figure"):
-                continue  # Skip tables and figures themselves
-
-            # Find table references
-            for match in table_pattern.finditer(chunk.content):
-                table_num = int(match.group(1))
-                # Try to find matching table (simplified: by order)
-                if table_num <= len(table_chunks):
-                    table_idx = list(table_chunks.keys())[table_num - 1]
-                    target_chunk = chunks[table_idx]
-                    chunk.cross_references.append(
-                        CrossReference(
-                            target_id=target_chunk.content_hash,
-                            reference_type="table",
-                            anchor_text=match.group(0),
-                        )
-                    )
-
-            # Find figure references
-            for match in figure_pattern.finditer(chunk.content):
-                figure_num = int(match.group(1))
-                if figure_num <= len(figure_chunks):
-                    figure_idx = list(figure_chunks.keys())[figure_num - 1]
-                    target_chunk = chunks[figure_idx]
-                    chunk.cross_references.append(
-                        CrossReference(
-                            target_id=target_chunk.content_hash,
-                            reference_type="figure",
-                            anchor_text=match.group(0),
-                        )
-                    )
-
-        return chunks
 
 
     def validate_chunks(self, chunks: List[LDU]) -> bool:
