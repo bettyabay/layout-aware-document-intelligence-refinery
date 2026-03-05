@@ -15,6 +15,7 @@ from src.utils.content_hasher import (
 )
 from src.utils.figure_chunker import FigureChunker, identify_figure_captions
 from src.utils.list_chunker import ListChunker, identify_lists
+from src.utils.section_chunker import SectionChunker, build_section_hierarchy
 from src.utils.table_chunker import TableChunker, identify_table_structures
 
 __all__ = [
@@ -31,6 +32,8 @@ __all__ = [
     "identify_figure_captions",
     "ListChunker",
     "identify_lists",
+    "SectionChunker",
+    "build_section_hierarchy",
     "TableChunker",
     "identify_table_structures",
 ]

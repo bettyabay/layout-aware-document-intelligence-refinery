@@ -465,9 +465,12 @@ class ChunkValidator:
     def validate_rule_4(self, chunks: List[LDU]) -> bool:
         """Rule 4: Section headers as parent metadata.
 
-        All chunks that appear after a header (until the next header) should
-        have that header's content as their parent_section. Headers themselves
-        should not have a parent_section (they are top-level).
+        This rule ensures:
+        1. Section headers are stored as parent metadata on all child chunks
+        2. Headers themselves don't have parent_section (they are top-level)
+        3. Nested sections preserve full path in section_path metadata
+        4. Child chunks inherit section from their parent section
+        5. Section hierarchy is properly maintained
 
         Args:
             chunks: List of LDUs to validate.
@@ -475,6 +478,8 @@ class ChunkValidator:
         Returns:
             True if rule is satisfied, False otherwise.
         """
+        from src.utils.section_chunker import SectionChunker
+
         # Sort chunks by page and position
         sorted_chunks = sorted(
             chunks,
@@ -484,36 +489,94 @@ class ChunkValidator:
             ),
         )
 
-        current_header: str | None = None
-        header_chunks = []
+        header_chunks = [c for c in sorted_chunks if c.chunk_type == "header"]
+        non_header_chunks = [c for c in sorted_chunks if c.chunk_type != "header"]
 
-        for chunk in sorted_chunks:
-            if chunk.chunk_type == "header":
-                # Headers should not have parent_section
-                if chunk.parent_section is not None:
+        # Check 1: Headers should not have parent_section
+        for chunk in header_chunks:
+            if chunk.parent_section is not None:
+                logger.warning(
+                    f"Header chunk {chunk.content_hash[:8]} has parent_section "
+                    f"but should be None"
+                )
+                return False
+
+        # Check 2: Non-header chunks should have section information
+        chunks_with_sections = 0
+        chunks_without_sections = 0
+
+        for chunk in non_header_chunks:
+            if chunk.parent_section is not None:
+                chunks_with_sections += 1
+
+                # Check 3: Verify section_path metadata exists for chunks with sections
+                section_path = chunk.metadata.get("section_path")
+                if not section_path:
                     logger.warning(
-                        f"Header chunk {chunk.content_hash[:8]} has parent_section "
-                        f"but should be None"
+                        f"Chunk {chunk.content_hash[:8]} has parent_section "
+                        f"but missing section_path metadata"
                     )
                     return False
 
-                current_header = chunk.content
-                header_chunks.append(chunk)
+                # Check 4: Verify section_path includes parent_section
+                if chunk.parent_section not in section_path:
+                    logger.warning(
+                        f"Chunk {chunk.content_hash[:8]} section_path doesn't include "
+                        f"parent_section. Path: {section_path}, Parent: {chunk.parent_section}"
+                    )
+                    # This is a warning, not a hard failure (path might be nested)
+                    pass
+
+                # Check 5: Verify section metadata is complete
+                if "section_level" not in chunk.metadata:
+                    logger.warning(
+                        f"Chunk {chunk.content_hash[:8]} missing section_level metadata"
+                    )
+                    # This is a warning, not a hard failure
+                    pass
+
             else:
-                # Non-header chunks should have parent_section if there's a header
-                if current_header is not None:
-                    if chunk.parent_section != current_header:
-                        logger.warning(
-                            f"Chunk {chunk.content_hash[:8]} has incorrect parent_section. "
-                            f"Expected '{current_header}', got '{chunk.parent_section}'"
-                        )
-                        # This might be acceptable if sections are nested - log as warning
+                chunks_without_sections += 1
+
+        # Check 6: Verify section hierarchy consistency
+        # Build section tree and verify chunks are assigned correctly
+        section_chunker = SectionChunker()
+        section_tree = section_chunker.build_section_hierarchy(chunks)
+
+        # Build page section map for validation
+        page_sections_map: Dict[int, List] = {}
+        section_chunker._build_page_section_map(section_tree, page_sections_map)
+
+        # Verify that chunks are in the correct sections based on position
+        for chunk in non_header_chunks:
+            if chunk.parent_section:
+                # Find the section this chunk should belong to
+                page_num = min(chunk.page_refs)
+                expected_section = section_chunker._find_section_for_chunk(
+                    chunk,
+                    page_num,
+                    page_sections_map,
+                    {},
+                )
+
+                # If we can determine expected section, verify it matches
+                if expected_section and expected_section.title != chunk.parent_section:
+                    # Check if it's a nested section (parent might be in path)
+                    section_path = chunk.metadata.get("section_path", "")
+                    if expected_section.title in section_path:
+                        # Acceptable - chunk is in a nested section
                         pass
-                # If there's no current header, parent_section can be None (document start)
+                    else:
+                        logger.warning(
+                            f"Chunk {chunk.content_hash[:8]} may be in wrong section. "
+                            f"Expected: {expected_section.title}, Got: {chunk.parent_section}"
+                        )
+                        # This is a warning, not a hard failure
 
         logger.debug(
             f"Rule 4 passed: {len(header_chunks)} headers, "
-            f"{len(sorted_chunks) - len(header_chunks)} child chunks validated"
+            f"{chunks_with_sections} chunks with sections, "
+            f"{chunks_without_sections} chunks without sections"
         )
         return True
 

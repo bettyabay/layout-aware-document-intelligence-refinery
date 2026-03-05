@@ -25,6 +25,7 @@ from src.models.ldu import CrossReference, LDU
 from src.utils.chunk_validator import ChunkValidator
 from src.utils.figure_chunker import FigureChunker
 from src.utils.list_chunker import ListChunker
+from src.utils.section_chunker import SectionChunker
 from src.utils.table_chunker import TableChunker
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,7 @@ class ChunkingEngine:
             preserve_lists=preserve_lists,
             list_split_strategy=list_split_strategy,
         )
+        self.section_chunker = SectionChunker()
 
     def load_config(self) -> dict:
         """Load chunking rules from the configuration file.
@@ -129,8 +131,9 @@ class ChunkingEngine:
         # Resolve cross-references
         chunks = self._resolve_cross_references(chunks)
 
-        # Assign parent sections
-        chunks = self._assign_parent_sections(chunks)
+        # Build section hierarchy and assign parent sections
+        section_tree = self.section_chunker.build_section_hierarchy(chunks)
+        chunks = self.section_chunker.assign_section_to_chunks(chunks, section_tree)
 
         # Validate all chunks against the five core rules
         if not self.validate_chunks(chunks):
@@ -521,37 +524,6 @@ class ChunkingEngine:
 
         return chunks
 
-    def _assign_parent_sections(self, chunks: List[LDU]) -> List[LDU]:
-        """Assign parent section titles to chunks based on spatial proximity.
-
-        Headers are identified, and all subsequent chunks until the next header
-        are assigned that header as their parent_section.
-
-        Args:
-            chunks: List of chunks to process.
-
-        Returns:
-            Updated chunks with parent_section populated.
-        """
-        current_section: str | None = None
-
-        # Sort chunks by page and then by vertical position (y0)
-        sorted_chunks = sorted(
-            chunks,
-            key=lambda c: (
-                min(c.page_refs),
-                c.bounding_box.get("y0", 0),
-            ),
-        )
-
-        for chunk in sorted_chunks:
-            if chunk.chunk_type == "header":
-                current_section = chunk.content
-                chunk.parent_section = None  # Headers don't have parent sections
-            else:
-                chunk.parent_section = current_section
-
-        return sorted_chunks
 
     def validate_chunks(self, chunks: List[LDU]) -> bool:
         """Validate chunks against all five core chunking rules.
