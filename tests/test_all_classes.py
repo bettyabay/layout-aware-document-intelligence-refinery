@@ -44,7 +44,7 @@ def triage_agent(profiles_dir: Path) -> TriageAgent:
 def extraction_router(ledger_dir: Path) -> ExtractionRouter:
     """ExtractionRouter instance for tests."""
     ledger_path = ledger_dir / "extraction_ledger.jsonl"
-    return ExtractionRouter(ledger_path=ledger_path, confidence_threshold=0.5)
+    return ExtractionRouter(ledger_path=ledger_path, confidence_threshold=0.74)
 
 
 def get_ledger_entries(ledger_path: Path, doc_id: str) -> list[dict]:

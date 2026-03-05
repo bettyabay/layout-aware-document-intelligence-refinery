@@ -252,7 +252,7 @@ def main() -> None:
 
     # Initialize agents
     triage_agent = TriageAgent(profiles_dir=PROFILES_DIR)
-    extraction_router = ExtractionRouter(ledger_path=LEDGER_PATH, confidence_threshold=0.5)
+    extraction_router = ExtractionRouter(ledger_path=LEDGER_PATH, confidence_threshold=0.74)
 
     # Process each document class
     for class_name, filename in DOCUMENT_CLASSES.items():
