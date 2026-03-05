@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}Validation - {{ doc_id }} - Document Intelligence Refinery{% endblock %}
+
+{% block extra_head %}
+<style>
+    .validation-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+    
+    .validation-header {
+        background: white;
+        padding: 2rem;
+        border-radius: 8px;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 600;
+        margin-left: 1rem;
+    }
+    
+    .status-badge.success {
+        background: #E8F5E9;
+        color: #2E7D32;
+    }
+    
+    .status-badge.failure {
+        background: #FFEBEE;
+        color: #C62828;
+    }
+    
+    .results-section {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .results-section h2 {
+        margin-bottom: 1rem;
+        color: #333;
+        border-bottom: 2px solid #2196F3;
+        padding-bottom: 0.5rem;
+    }
+    
+    .rule-result {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        margin-bottom: 0.5rem;
+        border-radius: 4px;
+        border-left: 4px solid;
+    }
+    
+    .rule-result.pass {
+        background: #E8F5E9;
+        border-left-color: #4CAF50;
+    }
+    
+    .rule-result.fail {
+        background: #FFEBEE;
+        border-left-color: #F44336;
+    }
+    
+    .rule-result.disabled {
+        background: #F5F5F5;
+        border-left-color: #9E9E9E;
+        opacity: 0.6;
+    }
+    
+    .rule-name {
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+    
+    .rule-status {
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+    
+    .violations-list {
+        margin-top: 1rem;
+    }
+    
+    .violation-item {
+        background: #FFF3E0;
+        padding: 1rem;
+        margin-bottom: 0.5rem;
+        border-radius: 4px;
+        border-left: 3px solid #FF9800;
+    }
+    
+    .violation-item strong {
+        color: #E65100;
+    }
+    
+    .violation-meta {
+        margin-top: 0.5rem;
+        font-size: 0.85rem;
+        color: #666;
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .stat-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #2196F3;
+    }
+    
+    .stat-label {
+        font-size: 0.9rem;
+        color: #666;
+        margin-top: 0.5rem;
+    }
+    
+    .btn {
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 0.9rem;
+        transition: background 0.2s;
+        margin-right: 0.5rem;
+    }
+    
+    .btn-secondary {
+        background: #757575;
+        color: white;
+    }
+    
+    .btn-secondary:hover {
+        background: #616161;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="validation-container">
+    <div class="validation-header">
+        <a href="/chunks/{{ doc_id }}" class="btn btn-secondary">← Back to Chunks</a>
+        <h1 style="margin-top: 1rem;">
+            Validation Results: {{ doc_id }}
+            <span class="status-badge {% if overall_success %}success{% else %}failure{% endif %}">
+                {% if overall_success %}✓ All Rules Passed{% else %}✗ Validation Failed{% endif %}
+            </span>
+        </h1>
+    </div>
+    
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">{{ total_chunks }}</div>
+            <div class="stat-label">Total Chunks</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ violations|length }}</div>
+            <div class="stat-label">Violations</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">
+                {{ results.values()|selectattr('value', 'equalto', True)|list|length }}
+            </div>
+            <div class="stat-label">Rules Passed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">
+                {{ results.values()|selectattr('value', 'equalto', False)|list|length }}
+            </div>
+            <div class="stat-label">Rules Failed</div>
+        </div>
+    </div>
+    
+    <div class="results-section">
+        <h2>Rule Validation Results</h2>
+        {% for rule_name, passed in results.items() %}
+        <div class="rule-result {% if passed is none %}disabled{% elif passed %}pass{% else %}fail{% endif %}">
+            <div>
+                <div class="rule-name">{{ rule_name|replace('_', ' ')|title }}</div>
+                {% if passed is none %}
+                <div class="rule-status" style="color: #666;">Disabled</div>
+                {% elif passed %}
+                <div class="rule-status" style="color: #2E7D32;">✓ Passed</div>
+                {% else %}
+                <div class="rule-status" style="color: #C62828;">✗ Failed</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    {% if violations %}
+    <div class="results-section">
+        <h2>Violations by Rule</h2>
+        {% for rule, rule_violations in violations_by_rule.items() %}
+        <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem; color: #E65100;">
+            {{ rule|replace('_', ' ')|title }} ({{ rule_violations|length }} violations)
+        </h3>
+        <div class="violations-list">
+            {% for violation in rule_violations %}
+            <div class="violation-item">
+                <strong>Violation:</strong> {{ violation.get('violation', 'Unknown') }}
+                {% if violation.get('chunk_id') %}
+                <br><strong>Chunk ID:</strong> 
+                <a href="/chunk/{{ violation.chunk_id }}?doc_id={{ doc_id }}" style="color: #2196F3;">
+                    {{ violation.chunk_id[:16] }}...
+                </a>
+                {% endif %}
+                {% if violation.get('error') %}
+                <br><strong>Error:</strong> {{ violation.error }}
+                {% endif %}
+                <div class="violation-meta">
+                    <strong>Timestamp:</strong> {{ violation.get('timestamp', 'N/A') }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="results-section">
+        <h2>No Violations Found</h2>
+        <p style="color: #666; padding: 1rem;">All validation rules passed successfully!</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

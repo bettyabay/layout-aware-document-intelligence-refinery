@@ -20,9 +20,11 @@ from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader
 from starlette.requests import Request
 
+from src.agents.chunker import ChunkingEngine
 from src.agents.extractor import ExtractionRouter
 from src.agents.triage import TriageAgent
 from src.models.document_profile import DocumentProfile
+from src.models.ldu import LDU
 
 # Add custom Jinja2 filters
 def tojson_pretty(value):
@@ -40,12 +42,15 @@ TEMPLATES_DIR = BASE_DIR / "src" / "web" / "templates"
 STATIC_DIR = BASE_DIR / "src" / "web" / "static"
 REFINERY_DIR = BASE_DIR / ".refinery"
 PROFILES_DIR = REFINERY_DIR / "profiles"
+CHUNKS_DIR = REFINERY_DIR / "chunks"
+VALIDATION_LOG = REFINERY_DIR / "chunk_validation.log"
 LEDGER_PATH = REFINERY_DIR / "extraction_ledger.jsonl"
 UPLOAD_DIR = REFINERY_DIR / "uploads"
 
 # Create directories
 REFINERY_DIR.mkdir(exist_ok=True)
 PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+CHUNKS_DIR.mkdir(parents=True, exist_ok=True)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # Setup templates and static files
@@ -63,6 +68,7 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 # Initialize agents
 triage_agent = TriageAgent()
 extraction_router = ExtractionRouter()
+chunking_engine = ChunkingEngine()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -358,6 +364,217 @@ async def get_extraction_json(doc_id: str, strategy: str):
         raise
     except Exception as exc:
         logger.exception("Failed to get extraction JSON")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+def load_chunks_for_document(doc_id: str) -> list[LDU]:
+    """Load chunks for a document, either from storage or by re-chunking.
+    
+    Args:
+        doc_id: Document ID.
+        
+    Returns:
+        List of LDUs.
+    """
+    chunks_path = CHUNKS_DIR / f"{doc_id}.json"
+    
+    # Try to load from storage
+    if chunks_path.exists():
+        try:
+            chunks_data = json.loads(chunks_path.read_text(encoding="utf-8"))
+            return [LDU.model_validate(chunk) for chunk in chunks_data]
+        except Exception as exc:
+            logger.warning(f"Failed to load chunks from {chunks_path}: {exc}")
+    
+    # If not found, try to re-chunk from extracted document
+    profile_path = PROFILES_DIR / f"{doc_id}.json"
+    if not profile_path.exists():
+        raise HTTPException(status_code=404, detail=f"Profile not found for {doc_id}")
+    
+    try:
+        profile_data = json.loads(profile_path.read_text(encoding="utf-8"))
+        profile = DocumentProfile.model_validate(profile_data)
+        document_path = Path(profile.metadata.path)
+        
+        if not document_path.exists():
+            raise HTTPException(
+                status_code=404, detail=f"Document file not found: {document_path}"
+            )
+        
+        # Extract and chunk
+        extracted_doc = extraction_router.extract(profile, str(document_path))
+        chunks = chunking_engine.chunk(extracted_doc)
+        
+        # Save chunks for future use
+        chunks_data = [chunk.model_dump() for chunk in chunks]
+        chunks_path.write_text(json.dumps(chunks_data, indent=2), encoding="utf-8")
+        logger.info(f"Saved {len(chunks)} chunks to {chunks_path}")
+        
+        return chunks
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to load or generate chunks")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/chunks/{doc_id}", response_class=HTMLResponse)
+async def view_chunks(
+    request: Request,
+    doc_id: str,
+    chunk_type: Optional[str] = None,
+    section: Optional[str] = None,
+    search: Optional[str] = None,
+):
+    """View all chunks for a document with filters."""
+    try:
+        chunks = load_chunks_for_document(doc_id)
+        
+        # Apply filters
+        if chunk_type:
+            chunks = [c for c in chunks if c.chunk_type == chunk_type]
+        if section:
+            chunks = [c for c in chunks if c.parent_section == section]
+        if search:
+            search_lower = search.lower()
+            chunks = [c for c in chunks if search_lower in c.content.lower()]
+        
+        # Get unique sections and chunk types for filters
+        sections = sorted(set(c.parent_section for c in chunks if c.parent_section))
+        chunk_types = sorted(set(c.chunk_type for c in chunks))
+        
+        # Build section hierarchy
+        section_tree = {}
+        for chunk in chunks:
+            if chunk.parent_section:
+                if chunk.parent_section not in section_tree:
+                    section_tree[chunk.parent_section] = []
+                section_tree[chunk.parent_section].append(chunk.content_hash)
+        
+        return HTMLResponse(
+            render_template(
+                "chunks.html",
+                {
+                    "request": request,
+                    "doc_id": doc_id,
+                    "chunks": chunks,
+                    "sections": sections,
+                    "chunk_types": chunk_types,
+                    "section_tree": section_tree,
+                    "current_filters": {
+                        "chunk_type": chunk_type,
+                        "section": section,
+                        "search": search,
+                    },
+                    "total_chunks": len(chunks),
+                },
+            )
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to load chunks")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/chunk/{chunk_id}", response_class=HTMLResponse)
+async def view_chunk_detail(request: Request, chunk_id: str, doc_id: str):
+    """View single chunk with full metadata and provenance."""
+    try:
+        chunks = load_chunks_for_document(doc_id)
+        chunk = next((c for c in chunks if c.content_hash == chunk_id), None)
+        
+        if not chunk:
+            raise HTTPException(status_code=404, detail=f"Chunk {chunk_id} not found")
+        
+        # Find related chunks (children, cross-references)
+        related_chunks = []
+        for ref in chunk.cross_references:
+            related = next((c for c in chunks if c.content_hash == ref.target_id), None)
+            if related:
+                related_chunks.append(related)
+        
+        child_chunks = [c for c in chunks if c.content_hash in chunk.children]
+        
+        return HTMLResponse(
+            render_template(
+                "chunk_detail.html",
+                {
+                    "request": request,
+                    "doc_id": doc_id,
+                    "chunk": chunk,
+                    "related_chunks": related_chunks,
+                    "child_chunks": child_chunks,
+                },
+            )
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to load chunk detail")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/validation/{doc_id}", response_class=HTMLResponse)
+async def view_validation(request: Request, doc_id: str):
+    """View validation results for a document."""
+    try:
+        chunks = load_chunks_for_document(doc_id)
+        
+        # Run validation
+        overall_success, results, violations = chunking_engine.validate_chunks_detailed(chunks)
+        
+        # Load validation log if exists
+        validation_entries = []
+        if VALIDATION_LOG.exists():
+            try:
+                with VALIDATION_LOG.open("r", encoding="utf-8") as f:
+                    for line in f:
+                        if line.strip() and doc_id in line:
+                            validation_entries.append(json.loads(line))
+            except Exception as exc:
+                logger.warning(f"Failed to read validation log: {exc}")
+        
+        # Group violations by rule
+        violations_by_rule = {}
+        for violation in violations:
+            rule = violation.get("rule", "unknown")
+            if rule not in violations_by_rule:
+                violations_by_rule[rule] = []
+            violations_by_rule[rule].append(violation)
+        
+        return HTMLResponse(
+            render_template(
+                "validation.html",
+                {
+                    "request": request,
+                    "doc_id": doc_id,
+                    "overall_success": overall_success,
+                    "results": results,
+                    "violations": violations,
+                    "violations_by_rule": violations_by_rule,
+                    "validation_entries": validation_entries,
+                    "total_chunks": len(chunks),
+                },
+            )
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to load validation results")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/api/chunks/{doc_id}")
+async def get_chunks_json(doc_id: str):
+    """API endpoint to get chunks as JSON."""
+    try:
+        chunks = load_chunks_for_document(doc_id)
+        return JSONResponse([chunk.model_dump() for chunk in chunks])
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to get chunks JSON")
         raise HTTPException(status_code=500, detail=str(exc))
 
 

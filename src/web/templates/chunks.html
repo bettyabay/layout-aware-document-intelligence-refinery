@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% block title %}Chunks - {{ doc_id }} - Document Intelligence Refinery{% endblock %}
+
+{% block extra_head %}
+<style>
+    .chunks-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+    
+    .chunks-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+    
+    .filters {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .filters form {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        align-items: end;
+    }
+    
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .filter-group label {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #555;
+    }
+    
+    .filter-group select,
+    .filter-group input {
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 0.9rem;
+    }
+    
+    .chunk-card {
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: box-shadow 0.2s;
+        border-left: 4px solid;
+    }
+    
+    .chunk-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    
+    .chunk-card.paragraph { border-left-color: #4CAF50; }
+    .chunk-card.table { border-left-color: #2196F3; }
+    .chunk-card.figure { border-left-color: #FF9800; }
+    .chunk-card.list { border-left-color: #9C27B0; }
+    .chunk-card.header { border-left-color: #F44336; }
+    .chunk-card.footnote { border-left-color: #607D8B; }
+    
+    .chunk-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 1rem;
+    }
+    
+    .chunk-type-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    
+    .chunk-type-badge.paragraph { background: #E8F5E9; color: #2E7D32; }
+    .chunk-type-badge.table { background: #E3F2FD; color: #1565C0; }
+    .chunk-type-badge.figure { background: #FFF3E0; color: #E65100; }
+    .chunk-type-badge.list { background: #F3E5F5; color: #6A1B9A; }
+    .chunk-type-badge.header { background: #FFEBEE; color: #C62828; }
+    .chunk-type-badge.footnote { background: #ECEFF1; color: #37474F; }
+    
+    .chunk-meta {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.85rem;
+        color: #666;
+        flex-wrap: wrap;
+    }
+    
+    .chunk-content {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: #f9f9f9;
+        border-radius: 4px;
+        max-height: 200px;
+        overflow-y: auto;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9rem;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+    
+    .chunk-actions {
+        margin-top: 1rem;
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .btn {
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 0.9rem;
+        transition: background 0.2s;
+    }
+    
+    .btn-primary {
+        background: #2196F3;
+        color: white;
+    }
+    
+    .btn-primary:hover {
+        background: #1976D2;
+    }
+    
+    .btn-secondary {
+        background: #757575;
+        color: white;
+    }
+    
+    .btn-secondary:hover {
+        background: #616161;
+    }
+    
+    .section-tree {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .section-tree h3 {
+        margin-bottom: 1rem;
+    }
+    
+    .section-item {
+        padding: 0.5rem;
+        margin-left: 1rem;
+        cursor: pointer;
+        border-radius: 4px;
+    }
+    
+    .section-item:hover {
+        background: #f0f0f0;
+    }
+    
+    .stats {
+        display: flex;
+        gap: 2rem;
+        margin-bottom: 1rem;
+    }
+    
+    .stat-item {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .stat-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #2196F3;
+    }
+    
+    .stat-label {
+        font-size: 0.9rem;
+        color: #666;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="chunks-container">
+    <div class="chunks-header">
+        <h1>Chunks: {{ doc_id }}</h1>
+        <a href="/api/chunks/{{ doc_id }}" class="btn btn-secondary" download>Export JSON</a>
+    </div>
+    
+    <div class="stats">
+        <div class="stat-item">
+            <div class="stat-value">{{ total_chunks }}</div>
+            <div class="stat-label">Total Chunks</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">{{ chunks|length }}</div>
+            <div class="stat-label">Filtered Chunks</div>
+        </div>
+    </div>
+    
+    <div class="filters">
+        <form method="get" action="/chunks/{{ doc_id }}">
+            <div class="filter-group">
+                <label for="chunk_type">Chunk Type</label>
+                <select name="chunk_type" id="chunk_type">
+                    <option value="">All Types</option>
+                    {% for ct in chunk_types %}
+                    <option value="{{ ct }}" {% if current_filters.chunk_type == ct %}selected{% endif %}>
+                        {{ ct }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="section">Section</label>
+                <select name="section" id="section">
+                    <option value="">All Sections</option>
+                    {% for sec in sections %}
+                    <option value="{{ sec }}" {% if current_filters.section == sec %}selected{% endif %}>
+                        {{ sec }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="search">Search</label>
+                <input type="text" name="search" id="search" 
+                       placeholder="Search content..." 
+                       value="{{ current_filters.search or '' }}">
+            </div>
+            
+            <div class="filter-group">
+                <button type="submit" class="btn btn-primary">Filter</button>
+                <a href="/chunks/{{ doc_id }}" class="btn btn-secondary">Clear</a>
+            </div>
+        </form>
+    </div>
+    
+    {% if sections %}
+    <div class="section-tree">
+        <h3>Section Hierarchy</h3>
+        {% for section, chunk_ids in section_tree.items() %}
+        <div class="section-item" onclick="filterBySection('{{ section }}')">
+            <strong>{{ section }}</strong> ({{ chunk_ids|length }} chunks)
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    <div class="chunks-list">
+        {% for chunk in chunks %}
+        <div class="chunk-card {{ chunk.chunk_type }}">
+            <div class="chunk-header">
+                <div>
+                    <span class="chunk-type-badge {{ chunk.chunk_type }}">{{ chunk.chunk_type }}</span>
+                    {% if chunk.parent_section %}
+                    <span style="margin-left: 0.5rem; color: #666; font-size: 0.9rem;">
+                        in {{ chunk.parent_section }}
+                    </span>
+                    {% endif %}
+                </div>
+                <div class="chunk-meta">
+                    <span>Page{% if chunk.page_refs|length > 1 %}s{% endif %}: {{ chunk.page_refs|join(', ') }}</span>
+                    <span>Tokens: {{ chunk.token_count }}</span>
+                    <span>Hash: {{ chunk.content_hash[:8] }}...</span>
+                </div>
+            </div>
+            
+            <div class="chunk-content">{{ chunk.content[:500] }}{% if chunk.content|length > 500 %}...{% endif %}</div>
+            
+            <div class="chunk-actions">
+                <a href="/chunk/{{ chunk.content_hash }}?doc_id={{ doc_id }}" class="btn btn-primary">View Details</a>
+                {% if chunk.cross_references %}
+                <span style="color: #666; font-size: 0.85rem;">
+                    {{ chunk.cross_references|length }} reference{% if chunk.cross_references|length > 1 %}s{% endif %}
+                </span>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 3rem; background: white; border-radius: 8px;">
+            <p style="color: #666; font-size: 1.1rem;">No chunks found matching the filters.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+function filterBySection(section) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('section', section);
+    window.location.href = url.toString();
+}
+</script>
+{% endblock %}
