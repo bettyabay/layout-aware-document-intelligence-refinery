@@ -68,3 +68,27 @@ chunking:
   # - "by_item": Split between list items (preserves item integrity)
   # - "by_sublist": Split by sublists (groups of related items)
   list_split_strategy: "by_item"
+
+# Validation configuration.
+#
+# This section defines validation rules and enforcement settings.
+validation:
+  # Log file for violations (JSONL format).
+  # Set to null or empty to disable file logging.
+  log_file: ".refinery/chunk_validation.log"
+
+  # Auto-fix violations when possible:
+  # - true: Attempt to automatically fix violations
+  # - false: Only log violations
+  auto_fix: false
+
+  # Enabled validation rules.
+  # Can be a list of rule names or a dictionary mapping rule names to enabled/disabled.
+  # Rule names: rule1_table_integrity, rule2_figure_captions, rule3_list_preservation,
+  #             rule4_section_hierarchy, rule5_cross_references
+  enabled_rules:
+    rule1_table_integrity: true
+    rule2_figure_captions: true
+    rule3_list_preservation: true
+    rule4_section_hierarchy: true
+    rule5_cross_references: true

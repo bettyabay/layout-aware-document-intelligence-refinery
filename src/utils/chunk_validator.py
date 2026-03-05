@@ -6,8 +6,11 @@ chunking rules that ensure RAG-optimized, semantically coherent chunks.
 
 from __future__ import annotations
 
+import json
 import logging
-from typing import List
+from datetime import datetime
+from pathlib import Path
+from typing import Callable, Dict, List, Optional, Tuple
 
 from src.models.ldu import LDU
 
@@ -23,36 +26,428 @@ class ChunkValidator:
     3. Numbered lists intact
     4. Section headers as parent metadata
     5. Cross-reference resolution
+
+    The validator is pluggable - rules can be enabled/disabled via configuration,
+    and custom rules can be added.
     """
 
-    def validate_all(self, chunks: List[LDU]) -> bool:
-        """Validate all chunks against all five rules.
+    def __init__(
+        self,
+        config: Optional[Dict] = None,
+        log_file: Optional[str] = ".refinery/chunk_validation.log",
+        auto_fix: bool = False,
+    ):
+        """Initialize the ChunkValidator.
+
+        Args:
+            config: Configuration dictionary with rule settings. If None, all
+                rules are enabled by default.
+            log_file: Path to log file for violations. If None, logging is
+                disabled.
+            auto_fix: Whether to attempt automatic fixes for violations.
+        """
+        self.config = config or {}
+        self.log_file = Path(log_file) if log_file else None
+        self.auto_fix = auto_fix
+        self.violations: List[Dict] = []
+
+        # Ensure log directory exists
+        if self.log_file:
+            self.log_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Rule registry - maps rule names to validation functions
+        self.rule_registry: Dict[str, Callable[[List[LDU]], bool]] = {
+            "rule1_table_integrity": self.validate_rule_1,
+            "rule2_figure_captions": self.validate_rule_2,
+            "rule3_list_preservation": self.validate_rule_3,
+            "rule4_section_hierarchy": self.validate_rule_4,
+            "rule5_cross_references": self.validate_rule_5,
+        }
+
+    def register_rule(
+        self, name: str, validator_func: Callable[[List[LDU]], bool]
+    ) -> None:
+        """Register a custom validation rule.
+
+        Args:
+            name: Name of the rule.
+            validator_func: Function that takes a list of chunks and returns
+                True if validation passes, False otherwise.
+        """
+        self.rule_registry[name] = validator_func
+        logger.info(f"Registered custom validation rule: {name}")
+
+    def validate_all(
+        self, chunks: List[LDU]
+    ) -> Tuple[bool, Dict[str, bool], List[Dict]]:
+        """Validate all chunks against all enabled rules.
 
         Args:
             chunks: List of LDUs to validate.
 
         Returns:
-            True if all rules pass, False otherwise.
+            Tuple of:
+            - overall_success: True if all enabled rules pass
+            - results: Dictionary mapping rule names to pass/fail status
+            - violations: List of violation dictionaries
         """
-        rules = [
-            self.validate_rule_1,
-            self.validate_rule_2,
-            self.validate_rule_3,
-            self.validate_rule_4,
-            self.validate_rule_5,
-        ]
+        self.violations = []
+        results: Dict[str, bool] = {}
 
-        all_passed = True
-        for rule_func in rules:
+        # Get enabled rules from config
+        enabled_rules = self._get_enabled_rules()
+
+        # Run each enabled rule
+        for rule_name, rule_func in self.rule_registry.items():
+            if rule_name not in enabled_rules:
+                logger.debug(f"Skipping disabled rule: {rule_name}")
+                results[rule_name] = None  # None means disabled
+                continue
+
             try:
-                if not rule_func(chunks):
-                    all_passed = False
-                    logger.warning(f"Validation rule failed: {rule_func.__name__}")
-            except Exception as e:
-                logger.error(f"Error validating {rule_func.__name__}: {e}")
-                all_passed = False
+                passed = rule_func(chunks)
+                results[rule_name] = passed
 
-        return all_passed
+                if not passed:
+                    # Collect violations for this rule
+                    rule_violations = self._collect_rule_violations(
+                        rule_name, chunks
+                    )
+                    self.violations.extend(rule_violations)
+
+                    # Attempt auto-fix if enabled
+                    if self.auto_fix:
+                        fixed = self._attempt_auto_fix(rule_name, chunks, rule_violations)
+                        if fixed:
+                            # Re-validate after fix
+                            results[rule_name] = rule_func(chunks)
+                            logger.info(f"Auto-fixed violations for rule: {rule_name}")
+
+            except Exception as e:
+                logger.error(f"Error validating {rule_name}: {e}", exc_info=True)
+                results[rule_name] = False
+                self.violations.append(
+                    {
+                        "rule": rule_name,
+                        "chunk_id": None,
+                        "error": str(e),
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
+
+        # Log violations to file
+        if self.log_file and self.violations:
+            self._log_violations()
+
+        overall_success = all(
+            result for result in results.values() if result is not None
+        )
+
+        return overall_success, results, self.violations
+
+    def validate_all_simple(self, chunks: List[LDU]) -> bool:
+        """Validate all chunks against all enabled rules (simple interface).
+
+        This method maintains backward compatibility with the original interface.
+
+        Args:
+            chunks: List of LDUs to validate.
+
+        Returns:
+            True if all enabled rules pass, False otherwise.
+        """
+        overall_success, _, _ = self.validate_all(chunks)
+        return overall_success
+
+    def _get_enabled_rules(self) -> List[str]:
+        """Get list of enabled rules from configuration.
+
+        Returns:
+            List of enabled rule names.
+        """
+        # Default: all rules enabled
+        default_rules = list(self.rule_registry.keys())
+
+        # Check config for rule enablement
+        validation_config = self.config.get("validation", {})
+        enabled_rules = validation_config.get("enabled_rules", default_rules)
+
+        # If enabled_rules is a list, use it; if it's a dict, check each rule
+        if isinstance(enabled_rules, dict):
+            return [
+                rule_name
+                for rule_name, enabled in enabled_rules.items()
+                if enabled
+            ]
+
+        return enabled_rules if isinstance(enabled_rules, list) else default_rules
+
+    def _collect_rule_violations(
+        self, rule_name: str, chunks: List[LDU]
+    ) -> List[Dict]:
+        """Collect violations for a specific rule.
+
+        Args:
+            rule_name: Name of the rule.
+            chunks: List of chunks to check.
+
+        Returns:
+            List of violation dictionaries.
+        """
+        violations = []
+
+        # Rule-specific violation collection
+        if rule_name == "rule1_table_integrity":
+            violations.extend(self._collect_table_violations(chunks))
+        elif rule_name == "rule2_figure_captions":
+            violations.extend(self._collect_figure_violations(chunks))
+        elif rule_name == "rule3_list_preservation":
+            violations.extend(self._collect_list_violations(chunks))
+        elif rule_name == "rule4_section_hierarchy":
+            violations.extend(self._collect_section_violations(chunks))
+        elif rule_name == "rule5_cross_references":
+            violations.extend(self._collect_reference_violations(chunks))
+
+        return violations
+
+    def _collect_table_violations(self, chunks: List[LDU]) -> List[Dict]:
+        """Collect table integrity violations.
+
+        Args:
+            chunks: List of chunks.
+
+        Returns:
+            List of violation dictionaries.
+        """
+        violations = []
+        table_chunks = [c for c in chunks if c.chunk_type == "table"]
+
+        for chunk in table_chunks:
+            if "table_headers" not in chunk.metadata:
+                violations.append(
+                    {
+                        "rule": "rule1_table_integrity",
+                        "chunk_id": chunk.content_hash,
+                        "violation": "missing_table_headers",
+                        "chunk_type": "table",
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
+
+        return violations
+
+    def _collect_figure_violations(self, chunks: List[LDU]) -> List[Dict]:
+        """Collect figure caption violations.
+
+        Args:
+            chunks: List of chunks.
+
+        Returns:
+            List of violation dictionaries.
+        """
+        violations = []
+        figure_chunks = [c for c in chunks if c.chunk_type == "figure"]
+
+        for chunk in figure_chunks:
+            if "caption" not in chunk.metadata:
+                violations.append(
+                    {
+                        "rule": "rule2_figure_captions",
+                        "chunk_id": chunk.content_hash,
+                        "violation": "missing_caption_metadata",
+                        "chunk_type": "figure",
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
+
+        return violations
+
+    def _collect_list_violations(self, chunks: List[LDU]) -> List[Dict]:
+        """Collect list preservation violations.
+
+        Args:
+            chunks: List of chunks.
+
+        Returns:
+            List of violation dictionaries.
+        """
+        violations = []
+        list_chunks = [c for c in chunks if c.chunk_type == "list"]
+
+        for chunk in list_chunks:
+            if not chunk.metadata.get("is_list", False):
+                violations.append(
+                    {
+                        "rule": "rule3_list_preservation",
+                        "chunk_id": chunk.content_hash,
+                        "violation": "missing_list_metadata",
+                        "chunk_type": "list",
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
+
+        return violations
+
+    def _collect_section_violations(self, chunks: List[LDU]) -> List[Dict]:
+        """Collect section hierarchy violations.
+
+        Args:
+            chunks: List of chunks.
+
+        Returns:
+            List of violation dictionaries.
+        """
+        violations = []
+        header_chunks = [c for c in chunks if c.chunk_type == "header"]
+
+        for chunk in header_chunks:
+            if chunk.parent_section is not None:
+                violations.append(
+                    {
+                        "rule": "rule4_section_hierarchy",
+                        "chunk_id": chunk.content_hash,
+                        "violation": "header_has_parent_section",
+                        "chunk_type": "header",
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
+
+        return violations
+
+    def _collect_reference_violations(self, chunks: List[LDU]) -> List[Dict]:
+        """Collect cross-reference violations.
+
+        Args:
+            chunks: List of chunks.
+
+        Returns:
+            List of violation dictionaries.
+        """
+        violations = []
+        chunk_index = {c.content_hash: c for c in chunks}
+
+        for chunk in chunks:
+            for ref in chunk.cross_references:
+                if ref.target_id not in chunk_index:
+                    violations.append(
+                        {
+                            "rule": "rule5_cross_references",
+                            "chunk_id": chunk.content_hash,
+                            "violation": "broken_reference",
+                            "target_id": ref.target_id,
+                            "reference_type": ref.reference_type,
+                            "anchor_text": ref.anchor_text,
+                            "timestamp": datetime.now().isoformat(),
+                        }
+                    )
+
+        return violations
+
+    def _attempt_auto_fix(
+        self, rule_name: str, chunks: List[LDU], violations: List[Dict]
+    ) -> bool:
+        """Attempt to automatically fix violations.
+
+        Args:
+            rule_name: Name of the rule.
+            chunks: List of chunks.
+            violations: List of violations to fix.
+
+        Returns:
+            True if fixes were applied, False otherwise.
+        """
+        fixed = False
+
+        if rule_name == "rule1_table_integrity":
+            # Auto-fix: Add missing table headers metadata
+            for violation in violations:
+                chunk_id = violation.get("chunk_id")
+                if chunk_id:
+                    chunk = next(
+                        (c for c in chunks if c.content_hash == chunk_id), None
+                    )
+                    if chunk and chunk.chunk_type == "table":
+                        # Try to extract headers from content
+                        content_lines = chunk.content.split("\n")
+                        if content_lines:
+                            # First line might be headers
+                            headers = content_lines[0].split(" | ")
+                            chunk.metadata["table_headers"] = headers
+                            fixed = True
+
+        elif rule_name == "rule2_figure_captions":
+            # Auto-fix: Add missing caption metadata
+            for violation in violations:
+                chunk_id = violation.get("chunk_id")
+                if chunk_id:
+                    chunk = next(
+                        (c for c in chunks if c.content_hash == chunk_id), None
+                    )
+                    if chunk and chunk.chunk_type == "figure":
+                        # Use content as caption if available
+                        caption = chunk.content if chunk.content != "[Figure]" else ""
+                        chunk.metadata["caption"] = caption
+                        chunk.metadata["has_caption"] = bool(caption)
+                        fixed = True
+
+        elif rule_name == "rule3_list_preservation":
+            # Auto-fix: Add missing list metadata
+            for violation in violations:
+                chunk_id = violation.get("chunk_id")
+                if chunk_id:
+                    chunk = next(
+                        (c for c in chunks if c.content_hash == chunk_id), None
+                    )
+                    if chunk and chunk.chunk_type == "list":
+                        chunk.metadata["is_list"] = True
+                        # Try to detect list type from content
+                        if any(
+                            chunk.content.strip().startswith(f"{i}.")
+                            for i in range(1, 100)
+                        ):
+                            chunk.metadata["list_type"] = "numbered"
+                        else:
+                            chunk.metadata["list_type"] = "bulleted"
+                        fixed = True
+
+        elif rule_name == "rule4_section_hierarchy":
+            # Auto-fix: Remove parent_section from headers
+            for violation in violations:
+                chunk_id = violation.get("chunk_id")
+                if chunk_id:
+                    chunk = next(
+                        (c for c in chunks if c.content_hash == chunk_id), None
+                    )
+                    if chunk and chunk.chunk_type == "header":
+                        chunk.parent_section = None
+                        fixed = True
+
+        # Note: rule5 (cross-references) cannot be auto-fixed as we need
+        # to know the correct target chunk
+
+        if fixed:
+            logger.info(f"Auto-fixed {len(violations)} violations for {rule_name}")
+
+        return fixed
+
+    def _log_violations(self) -> None:
+        """Log violations to file.
+
+        Writes violations in JSONL format for easy parsing.
+        """
+        if not self.log_file:
+            return
+
+        try:
+            with open(self.log_file, "a", encoding="utf-8") as f:
+                for violation in self.violations:
+                    f.write(json.dumps(violation) + "\n")
+            logger.info(
+                f"Logged {len(self.violations)} violations to {self.log_file}"
+            )
+        except Exception as e:
+            logger.error(f"Failed to log violations to {self.log_file}: {e}")
+
 
     def validate_rule_1(self, chunks: List[LDU]) -> bool:
         """Rule 1: No table cell split from header.

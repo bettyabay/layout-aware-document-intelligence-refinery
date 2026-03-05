@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import yaml
 
@@ -53,7 +53,15 @@ class ChunkingEngine:
         """
         self.config_path = Path(config_path)
         self.config = self.load_config()
-        self.validator = ChunkValidator()
+        # Initialize validator with config and logging
+        validation_config = self.config.get("validation", {})
+        log_file = validation_config.get(
+            "log_file", ".refinery/chunk_validation.log"
+        )
+        auto_fix = validation_config.get("auto_fix", False)
+        self.validator = ChunkValidator(
+            config=self.config, log_file=log_file, auto_fix=auto_fix
+        )
         max_tokens = self.config.get("max_tokens_per_chunk", 512)
         preserve_lists = self.config.get("preserve_lists", True)
         list_split_strategy = self.config.get("list_split_strategy", "by_item")
@@ -142,11 +150,23 @@ class ChunkingEngine:
         section_tree = self.section_chunker.build_section_hierarchy(chunks)
         chunks = self.section_chunker.assign_section_to_chunks(chunks, section_tree)
 
-        # Validate all chunks against the five core rules
-        if not self.validate_chunks(chunks):
-            raise ValueError(
-                "Chunk validation failed. One or more chunking rules were violated."
-            )
+        # Validate all chunks against the enabled rules
+        overall_success, results, violations = self.validate_chunks_detailed(chunks)
+
+        # Check enforcement mode
+        enforcement_mode = self.config.get("enforcement_mode", "strict")
+        if not overall_success:
+            if enforcement_mode == "strict":
+                raise ValueError(
+                    f"Chunk validation failed. Violations: {len(violations)}. "
+                    f"Results: {results}"
+                )
+            elif enforcement_mode == "warn":
+                logger.warning(
+                    f"Chunk validation found {len(violations)} violations. "
+                    f"Results: {results}"
+                )
+            # relaxed mode: just log, don't raise
 
         logger.info(f"Generated {len(chunks)} LDUs from document")
         return chunks
@@ -471,12 +491,28 @@ class ChunkingEngine:
 
 
     def validate_chunks(self, chunks: List[LDU]) -> bool:
-        """Validate chunks against all five core chunking rules.
+        """Validate chunks against all enabled rules (simple interface).
 
         Args:
             chunks: List of LDUs to validate.
 
         Returns:
             True if all validation rules pass, False otherwise.
+        """
+        return self.validator.validate_all_simple(chunks)
+
+    def validate_chunks_detailed(
+        self, chunks: List[LDU]
+    ) -> Tuple[bool, Dict[str, bool], List[Dict]]:
+        """Validate chunks against all enabled rules with detailed results.
+
+        Args:
+            chunks: List of LDUs to validate.
+
+        Returns:
+            Tuple of:
+            - overall_success: True if all enabled rules pass
+            - results: Dictionary mapping rule names to pass/fail status
+            - violations: List of violation dictionaries
         """
         return self.validator.validate_all(chunks)
