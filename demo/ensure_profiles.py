@@ -35,7 +35,7 @@ def ensure_profiles() -> None:
     PROFILES_DIR.mkdir(parents=True, exist_ok=True)
 
     triage_agent = TriageAgent(profiles_dir=PROFILES_DIR)
-    extraction_router = ExtractionRouter(ledger_path=LEDGER_PATH, confidence_threshold=0.7)
+    extraction_router = ExtractionRouter(ledger_path=LEDGER_PATH, confidence_threshold=0.5)
 
     existing_profiles = {f.stem for f in PROFILES_DIR.glob("*.json")}
 

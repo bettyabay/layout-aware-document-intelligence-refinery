@@ -40,7 +40,7 @@ class ExtractionRouter:
     and analysis.
 
     Attributes:
-        confidence_threshold: Minimum confidence score to accept a strategy (default: 0.7).
+        confidence_threshold: Minimum confidence score to accept a strategy (default: 0.5).
         ledger_path: Path to extraction_ledger.jsonl file.
         enable_parallel: Whether to enable parallel processing for multi-page documents.
         max_workers: Maximum number of parallel workers (if parallel enabled).
