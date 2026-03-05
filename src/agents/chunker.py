@@ -16,13 +16,14 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 import yaml
 
 from src.models.extracted_document import ExtractedDocument
 from src.models.ldu import CrossReference, LDU
 from src.utils.chunk_validator import ChunkValidator
+from src.utils.figure_chunker import FigureChunker
 from src.utils.table_chunker import TableChunker
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,7 @@ class ChunkingEngine:
         self.validator = ChunkValidator()
         max_tokens = self.config.get("max_tokens_per_chunk", 512)
         self.table_chunker = TableChunker(max_tokens_per_chunk=max_tokens)
+        self.figure_chunker = FigureChunker()
 
     def load_config(self) -> dict:
         """Load chunking rules from the configuration file.
@@ -103,14 +105,18 @@ class ChunkingEngine:
 
         chunks: List[LDU] = []
 
-        # Process text blocks into paragraph/header/list chunks
-        chunks.extend(self._chunk_text_blocks(extracted_document))
+        # Process figures first (to identify and pair captions)
+        # This returns both figure chunks and a set of used caption block IDs
+        figure_chunks, used_caption_blocks = self._chunk_figures(extracted_document)
+        chunks.extend(figure_chunks)
+
+        # Process text blocks (skipping those used as captions)
+        chunks.extend(
+            self._chunk_text_blocks(extracted_document, used_caption_blocks)
+        )
 
         # Process tables as atomic chunks
         chunks.extend(self._chunk_tables(extracted_document))
-
-        # Process figures with captions
-        chunks.extend(self._chunk_figures(extracted_document))
 
         # Resolve cross-references
         chunks = self._resolve_cross_references(chunks)
@@ -128,20 +134,51 @@ class ChunkingEngine:
         return chunks
 
     def _chunk_text_blocks(
-        self, extracted_document: ExtractedDocument
+        self,
+        extracted_document: ExtractedDocument,
+        used_caption_blocks: set = None,
     ) -> List[LDU]:
         """Chunk text blocks into paragraphs, headers, and lists.
 
+        Skips text blocks that are captions and have been paired with figures.
+
         Args:
             extracted_document: The extracted document.
+            used_caption_blocks: Set of text block IDs that are used as captions
+                and should be skipped.
 
         Returns:
             List of LDUs from text blocks.
         """
         chunks = []
         max_tokens = self.config.get("max_tokens_per_chunk", 512)
+        used_caption_blocks = used_caption_blocks or set()
 
         for block in extracted_document.text_blocks:
+            # Skip text blocks that are captions and have been used by figures
+            if id(block) in used_caption_blocks:
+                logger.debug(
+                    f"Skipping text block on page {block.page_num} - used as figure caption"
+                )
+                continue
+
+            # Also check if this text block looks like a caption and is near a figure
+            # If so, skip it (it should have been paired with a figure)
+            if self.figure_chunker._is_caption_text(block.content):
+                # Check if there's a nearby figure that might use this as caption
+                for figure in extracted_document.figures:
+                    if self.figure_chunker._is_spatially_proximate(figure, block):
+                        logger.debug(
+                            f"Skipping caption text block on page {block.page_num} - "
+                            f"likely paired with figure"
+                        )
+                        # Mark as used to prevent double-processing
+                        used_caption_blocks.add(id(block))
+                        break
+                else:
+                    # Not near any figure, so it's an orphaned caption
+                    # We'll still chunk it, but validator will flag it
+                    pass
             # Determine chunk type based on content heuristics
             chunk_type = self._classify_text_block(block.content)
 
@@ -215,40 +252,41 @@ class ChunkingEngine:
 
         return chunks
 
-    def _chunk_figures(self, extracted_document: ExtractedDocument) -> List[LDU]:
-        """Chunk figures with captions stored as metadata.
+    def _chunk_figures(
+        self, extracted_document: ExtractedDocument
+    ) -> Tuple[List[LDU], set]:
+        """Chunk figures with captions stored as metadata using FigureChunker.
+
+        This method ensures that:
+        - Captions are found using spatial proximity and pattern matching
+        - Captions are stored as metadata, never as separate chunks
+        - Figures are paired with their captions before chunking
 
         Args:
             extracted_document: The extracted document.
 
         Returns:
-            List of figure LDUs.
+            Tuple of (list of figure LDUs, set of used caption block IDs).
         """
         chunks = []
+        used_caption_blocks = set()  # Track which text blocks are used as captions
 
         for figure in extracted_document.figures:
-            # Figures have minimal text content (just the caption if available)
-            content = figure.caption or "[Figure]"
-
-            ldu = LDU(
-                content=content,
-                chunk_type="figure",
-                page_refs=[figure.page_num],
-                bounding_box={
-                    "x0": figure.bbox.x0,
-                    "y0": figure.bbox.y0,
-                    "x1": figure.bbox.x1,
-                    "y1": figure.bbox.y1,
-                },
-                token_count=len(content) // 4,
-                metadata={
-                    "caption": figure.caption,
-                    "has_caption": bool(figure.caption),
-                },
+            # Find caption for this figure
+            caption_block = self.figure_chunker.find_caption_for_figure(
+                figure, extracted_document
             )
+
+            # Create LDU with caption in metadata
+            ldu = self.figure_chunker.pair_figure_with_caption(figure, caption_block)
+
+            # Mark caption block as used (so it won't be chunked separately)
+            if caption_block:
+                used_caption_blocks.add(id(caption_block))
+
             chunks.append(ldu)
 
-        return chunks
+        return chunks, used_caption_blocks
 
     def _classify_text_block(self, content: str) -> str:
         """Classify a text block as paragraph, header, list, or footnote.

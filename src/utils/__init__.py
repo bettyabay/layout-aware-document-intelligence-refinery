@@ -13,6 +13,7 @@ from src.utils.content_hasher import (
     generate_spatial_hash,
     verify_hash,
 )
+from src.utils.figure_chunker import FigureChunker, identify_figure_captions
 from src.utils.table_chunker import TableChunker, identify_table_structures
 
 __all__ = [
@@ -25,6 +26,8 @@ __all__ = [
     "generate_content_hash",
     "generate_spatial_hash",
     "verify_hash",
+    "FigureChunker",
+    "identify_figure_captions",
     "TableChunker",
     "identify_table_structures",
 ]
