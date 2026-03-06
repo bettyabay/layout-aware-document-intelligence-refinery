@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Tuple
 
 from src.models.extracted_document import Table
 from src.models.ldu import LDU
+from src.utils.token_counter import count_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -123,8 +124,6 @@ class TableChunker:
         content = self._table_to_structured_text(table, grouped_cells)
 
         # Estimate token count using token counter
-        from src.utils.token_counter import count_tokens
-
         token_count = count_tokens(content)
 
         # Create metadata with table structure information

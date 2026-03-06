@@ -1,0 +1,18 @@
+{
+  "overall_success": true,
+  "rule_results": {
+    "rule1_table_integrity": true,
+    "rule2_figure_captions": true,
+    "rule3_list_preservation": true,
+    "rule4_section_hierarchy": true,
+    "rule5_cross_references": true
+  },
+  "violations": [],
+  "violation_summary": {
+    "rule1_table_integrity": 0,
+    "rule2_figure_captions": 0,
+    "rule3_list_preservation": 0,
+    "rule4_section_hierarchy": 0,
+    "rule5_cross_references": 0
+  }
+}
