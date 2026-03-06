@@ -1,0 +1,30 @@
+{
+  "doc_id": "2018_Audited_Financial_Statement_Report",
+  "doc_name": "2018_Audited_Financial_Statement_Report.pdf",
+  "root_sections": [
+    {
+      "title": "Document Root",
+      "page_start": 1,
+      "page_end": 1,
+      "child_sections": [],
+      "key_entities": [
+        "Amortizationintangibleassets",
+        "Birr",
+        "Borrowings",
+        "Capital",
+        "Cash",
+        "Cashflowsfrom",
+        "Cashflowsfromfinancingactivities",
+        "Cashflowsfromoperatingactivities",
+        "Cashgeneratedfrom",
+        "Contract"
+      ],
+      "summary": "Contains 14 content units including 5 tables, 8 figures",
+      "data_types_present": [
+        "figure",
+        "table",
+        "text"
+      ]
+    }
+  ]
+}

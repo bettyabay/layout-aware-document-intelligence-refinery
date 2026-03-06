@@ -1,0 +1,24 @@
+{
+  "document": {
+    "doc_id": "2018_Audited_Financial_Statement_Report",
+    "doc_name": "2018_Audited_Financial_Statement_Report.pdf"
+  },
+  "pageindex": {
+    "root_sections": 1,
+    "total_sections": 1,
+    "page_range": {
+      "start": 1,
+      "end": 1
+    }
+  },
+  "enrichment": {
+    "sections_with_entities": 1,
+    "sections_with_summaries": 1,
+    "sections_with_data_types": 1,
+    "total_entities": 10
+  },
+  "output_files": {
+    "pageindex_json": "c:\\Users\\Hello\\OneDrive\\Desktop\\Tenacious-Projects\\layout-aware-document-intelligence-refinery\\.refinery\\pageindex\\2018_Audited_Financial_Statement_Report_pageindex.json",
+    "pageindex_markdown": "c:\\Users\\Hello\\OneDrive\\Desktop\\Tenacious-Projects\\layout-aware-document-intelligence-refinery\\outputs\\2018_Audited_Financial_Statement_Report_pageindex.md"
+  }
+}
