@@ -1,0 +1,316 @@
+[
+    [
+        {
+            "type": "aside_text",
+            "bbox": [
+                0.0,
+                0.0,
+                0.033,
+                0.999
+            ],
+            "angle": 0,
+            "content": "1"
+        },
+        {
+            "type": "header",
+            "bbox": [
+                0.162,
+                0.056,
+                0.282,
+                0.071
+            ],
+            "angle": 0,
+            "content": "Ethio Telecom"
+        },
+        {
+            "type": "header",
+            "bbox": [
+                0.162,
+                0.072,
+                0.375,
+                0.086
+            ],
+            "angle": 0,
+            "content": "IFRS financial statements"
+        },
+        {
+            "type": "header",
+            "bbox": [
+                0.162,
+                0.087,
+                0.431,
+                0.102
+            ],
+            "angle": 0,
+            "content": "For the year ended 30 June 2018"
+        },
+        {
+            "type": "header",
+            "bbox": [
+                0.162,
+                0.104,
+                0.657,
+                0.12
+            ],
+            "angle": 0,
+            "content": "Statement of profit or loss and other comprehensive income"
+        },
+        {
+            "type": "table",
+            "bbox": [
+                0.148,
+                0.131,
+                0.899,
+                0.59
+            ],
+            "angle": 0,
+            "content": "<table><tr><td rowspan=\"2\"></td><td rowspan=\"2\">Notes</td><td>30 June 2018</td><td>30 June 2017</td></tr><tr><td>Birr&#x27;000</td><td>Birr&#x27;000</td></tr><tr><td>Revenue from contracts with customers</td><td>5</td><td>34,816,668</td><td>29,962,314</td></tr><tr><td>Direct costs</td><td>6(a)</td><td>(2,906,981)</td><td>(2,488,636)</td></tr><tr><td>Operating expenses</td><td>6(b)</td><td>(9,682,990)</td><td>(6,892,130)</td></tr><tr><td>Net impairment losses on financial and contract assets</td><td>14 16 17</td><td>(173,748)</td><td>(487,189)</td></tr><tr><td>Other income (expense)</td><td>8</td><td>(213,846)</td><td>311,071</td></tr><tr><td>Earnings before interest, taxes, depreciation and amortization (EBITDA)</td><td></td><td>21,839,103</td><td>20,405,430</td></tr><tr><td>Depreciation of property, plant and equipment</td><td>11</td><td>(6,222,741)</td><td>(6,120,882)</td></tr><tr><td>Depreciation charge of right of use asset</td><td>12</td><td>(100,603)</td><td>(94,952)</td></tr><tr><td>Amortization intangible assets</td><td>13</td><td>(586,267)</td><td>(479,784)</td></tr><tr><td></td><td></td><td>(6,909,611)</td><td>(6,695,618)</td></tr><tr><td>Operating profit</td><td></td><td>14,929,492</td><td>13,709,812</td></tr><tr><td>Finance income</td><td>9</td><td>27,515</td><td>12,175</td></tr><tr><td>Finance costs</td><td>9</td><td>(7,924,729)</td><td>(3,067,457)</td></tr><tr><td>Finance costs - net</td><td></td><td>(7,897,214)</td><td>(3,055,282)</td></tr><tr><td>Profit / (loss) before income tax</td><td></td><td>7,032,278</td><td>10,654,530</td></tr><tr><td>Income tax (expense) / credit</td><td>10(a)</td><td>(2,978,891)</td><td>(1,819,086)</td></tr><tr><td>Profit / (loss) after tax</td><td></td><td>4,053,387</td><td>8,835,444</td></tr><tr><td>Other comprehensive income (OCI) net on income tax</td><td></td><td></td><td></td></tr><tr><td colspan=\"4\">Items that will not be subsequently reclassified into profit or loss:</td></tr><tr><td>Remeasurement gain/(loss) on post employment benefits obligations</td><td>19</td><td>(3,503)</td><td>(31,519)</td></tr><tr><td>Deferred tax (liability)/asset on remeasurement gain or loss on post employment benefits obligations</td><td>10(a)</td><td>1,051</td><td>9,456</td></tr><tr><td></td><td></td><td>(2,452)</td><td>(22,063)</td></tr><tr><td>Total comprehensive income (loss) for the period</td><td></td><td>4,050,935</td><td>8,813,381</td></tr></table>"
+        },
+        {
+            "type": "table_footnote",
+            "bbox": [
+                0.148,
+                0.593,
+                0.595,
+                0.607
+            ],
+            "angle": 0,
+            "content": "The notes on pages 15 to 67 are an integral part of these financial statements."
+        },
+        {
+            "type": "image",
+            "bbox": [
+                0.262,
+                0.684,
+                0.481,
+                0.844
+            ],
+            "angle": 0,
+            "content": null
+        },
+        {
+            "type": "image",
+            "bbox": [
+                0.544,
+                0.671,
+                0.781,
+                0.837
+            ],
+            "angle": 0,
+            "content": null
+        },
+        {
+            "type": "image",
+            "bbox": [
+                0.418,
+                0.829,
+                0.612,
+                0.97
+            ],
+            "angle": 0,
+            "content": null
+        }
+    ],
+    [
+        {
+            "type": "header",
+            "bbox": [
+                0.159,
+                0.059,
+                0.262,
+                0.072
+            ],
+            "angle": 0,
+            "content": "Ethio Telecom"
+        },
+        {
+            "type": "header",
+            "bbox": [
+                0.159,
+                0.074,
+                0.341,
+                0.086
+            ],
+            "angle": 0,
+            "content": "IFRS financial statements"
+        },
+        {
+            "type": "header",
+            "bbox": [
+                0.159,
+                0.087,
+                0.39,
+                0.101
+            ],
+            "angle": 0,
+            "content": "For the year ended 30 June 2018"
+        },
+        {
+            "type": "header",
+            "bbox": [
+                0.158,
+                0.102,
+                0.378,
+                0.115
+            ],
+            "angle": 0,
+            "content": "Statement of financial position"
+        },
+        {
+            "type": "table",
+            "bbox": [
+                0.148,
+                0.126,
+                0.797,
+                0.7
+            ],
+            "angle": 0,
+            "content": "<table><tr><td rowspan=\"2\"></td><td rowspan=\"2\">Notes</td><td>30 June 2018</td><td>30 June 2017</td><td>1 July 2016</td></tr><tr><td>Birr&#x27;000</td><td>Birr&#x27;000</td><td>Birr&#x27;000</td></tr><tr><td colspan=\"5\">ASSETS</td></tr><tr><td colspan=\"5\">Non current assets</td></tr><tr><td>Property, plant and equipment</td><td>11</td><td>41,116,759</td><td>45,678,189</td><td>50,122,386</td></tr><tr><td>Right of use assets</td><td>12</td><td>260,801</td><td>355,554</td><td>381,874</td></tr><tr><td>Intangible assets</td><td>13</td><td>2,218,344</td><td>2,804,409</td><td>2,537,090</td></tr><tr><td>Other assets</td><td>14(a)</td><td>86,427</td><td>102,428</td><td>19,527</td></tr><tr><td>Other financial assets at amortised cost</td><td>14(c)</td><td>7,415,223</td><td>3,641,254</td><td>104,318</td></tr><tr><td></td><td></td><td>51,097,554</td><td>52,581,834</td><td>53,165,195</td></tr><tr><td colspan=\"5\">Current assets</td></tr><tr><td>Inventories</td><td>15</td><td>6,929,012</td><td>6,815,294</td><td>5,539,875</td></tr><tr><td>Other assets</td><td>14(a)</td><td>3,041,213</td><td>3,763,131</td><td>2,955,039</td></tr><tr><td>Trade receivables</td><td>14(b)</td><td>9,259,964</td><td>6,833,002</td><td>8,312,506</td></tr><tr><td>Other financial assets at amortised cost</td><td>14(c)</td><td>135,621</td><td>117,977</td><td>52,609</td></tr><tr><td>Investment securities at amortised cost</td><td>16</td><td>946,428</td><td>647,008</td><td>646,940</td></tr><tr><td>Cash and cash equivalents</td><td>17</td><td>15,538,827</td><td>4,207,111</td><td>2,770,692</td></tr><tr><td></td><td></td><td>35,851,065</td><td>22,383,523</td><td>20,277,661</td></tr><tr><td>Total assets</td><td></td><td>86,948,619</td><td>74,965,357</td><td>73,442,856</td></tr><tr><td colspan=\"5\">EQUITY AND LIABILITIES</td></tr><tr><td colspan=\"5\">LIABILITIES</td></tr><tr><td colspan=\"5\">Non-current liabilities</td></tr><tr><td>Borrowings</td><td>18</td><td>31,444,923</td><td>32,250,874</td><td>32,394,318</td></tr><tr><td>Provisions</td><td>20(c)</td><td>6,722</td><td>7,576</td><td>5,982</td></tr><tr><td>Lease liabilities</td><td>12</td><td>136,188</td><td>183,126</td><td>221,060</td></tr><tr><td>Grants</td><td>23</td><td>705</td><td>2,311,655</td><td>1,554,256</td></tr><tr><td>Deferred tax liabilities</td><td>10(d)</td><td>528,179</td><td>4,443,153</td><td>7,410,921</td></tr><tr><td>Defined benefit liabilities</td><td>19</td><td>403,477</td><td>362,317</td><td>307,217</td></tr><tr><td></td><td></td><td>32,520,194</td><td>39,558,701</td><td>41,893,754</td></tr><tr><td colspan=\"5\">Current liabilities</td></tr><tr><td>Borrowings</td><td>18</td><td>7,008,425</td><td>4,491,587</td><td>3,551,021</td></tr><tr><td>Contract liabilities</td><td>20(a)</td><td>7,643,770</td><td>2,809,202</td><td>5,165,069</td></tr><tr><td>Trade and other payables</td><td>20(b)</td><td>18,785,667</td><td>12,990,209</td><td>15,886,310</td></tr><tr><td>Provisions</td><td>20(c)</td><td>7,279</td><td>7,336</td><td>4,245</td></tr><tr><td>Lease liabilities</td><td>12</td><td>59,809</td><td>96,676</td><td>113,703</td></tr><tr><td>Grants</td><td>23</td><td>3,020,816</td><td>45</td><td>73</td></tr><tr><td>Defined benefit liabilities</td><td>19</td><td>37,483</td><td>34,628</td><td>28,412</td></tr><tr><td>Current income tax</td><td>10 (c)</td><td>11,056,813</td><td>9,003,846</td><td>8,387,250</td></tr><tr><td></td><td></td><td>47,620,062</td><td>29,433,529</td><td>33,136,083</td></tr><tr><td>Total liabilities</td><td></td><td>80,140,256</td><td>68,992,230</td><td>75,029,837</td></tr><tr><td colspan=\"5\">Equity attributable to owners</td></tr><tr><td>Capital</td><td>21</td><td>4,749,719</td><td>4,749,719</td><td>4,749,719</td></tr><tr><td>Retained earnings</td><td></td><td>1,133,215</td><td>295,527</td><td>(7,097,793)</td></tr><tr><td>Legal reserve</td><td>22</td><td>949,944</td><td>949,944</td><td>761,093</td></tr><tr><td>Other reserves</td><td>24</td><td>(24,515)</td><td>(22,063)</td><td>-</td></tr><tr><td>Total equity</td><td></td><td>6,808,363</td><td>5,973,127</td><td>(1,586,981)</td></tr><tr><td>Total equity and liabilities</td><td></td><td>86,948,619</td><td>74,965,357</td><td>73,442,856</td></tr></table>"
+        },
+        {
+            "type": "table_footnote",
+            "bbox": [
+                0.141,
+                0.703,
+                0.524,
+                0.716
+            ],
+            "angle": 0,
+            "content": "The notes on pages 15 to 67 are an integral part of these financial statements."
+        },
+        {
+            "type": "text",
+            "bbox": [
+                0.141,
+                0.726,
+                0.759,
+                0.741
+            ],
+            "angle": 0,
+            "content": "The financial statements on pages 11 to 67 were approved and authorised for issue on o3 December 2021 and were signed by:"
+        },
+        {
+            "type": "image",
+            "bbox": [
+                0.139,
+                0.742,
+                0.82,
+                0.976
+            ],
+            "angle": 0,
+            "content": null
+        }
+    ],
+    [
+        {
+            "type": "aside_text",
+            "bbox": [
+                0.0,
+                0.0,
+                0.03,
+                0.999
+            ],
+            "angle": 0,
+            "content": "1"
+        },
+        {
+            "type": "header",
+            "bbox": [
+                0.165,
+                0.057,
+                0.284,
+                0.073
+            ],
+            "angle": 0,
+            "content": "Ethio Telecom"
+        },
+        {
+            "type": "header",
+            "bbox": [
+                0.165,
+                0.074,
+                0.376,
+                0.088
+            ],
+            "angle": 0,
+            "content": "IFRS financial statements"
+        },
+        {
+            "type": "header",
+            "bbox": [
+                0.165,
+                0.089,
+                0.432,
+                0.104
+            ],
+            "angle": 0,
+            "content": "For the year ended 30 June 2018"
+        },
+        {
+            "type": "header",
+            "bbox": [
+                0.164,
+                0.104,
+                0.362,
+                0.119
+            ],
+            "angle": 0,
+            "content": "Statement of cash flows"
+        },
+        {
+            "type": "table",
+            "bbox": [
+                0.153,
+                0.131,
+                0.837,
+                0.523
+            ],
+            "angle": 0,
+            "content": "<table><tr><td rowspan=\"2\"></td><td rowspan=\"2\">Notes</td><td>30 June 2018</td><td>30 June 2017</td></tr><tr><td>Birr&#x27;000</td><td>Birr&#x27;000</td></tr><tr><td colspan=\"4\">Cash flows from operating activities</td></tr><tr><td>Cash generated from operations</td><td>26</td><td>27,853,736</td><td>13,610,946</td></tr><tr><td>Interest income received</td><td></td><td>4,167</td><td>3,445</td></tr><tr><td>Interest expense paid</td><td>18</td><td>(981,063)</td><td>(618,816)</td></tr><tr><td>Income tax paid</td><td>10</td><td>(5,210,786)</td><td>(4,160,802)</td></tr><tr><td>Net cash (outflow)/inflow from operating activities</td><td></td><td>21,666,054</td><td>8,834,773</td></tr><tr><td colspan=\"4\">Cash flows from investing activities</td></tr><tr><td>Purchase of investment securities</td><td></td><td>(300,000)</td><td>-</td></tr><tr><td>Purchase of intangible assets</td><td></td><td>(202)</td><td>(193,653)</td></tr><tr><td>Purchase of property, plant and equipment</td><td></td><td>(1,665,259)</td><td>(2,230,137)</td></tr><tr><td>Payment for right of use assets</td><td></td><td>(126)</td><td>(940)</td></tr><tr><td>Proceeds from sale of property, plant and equipment</td><td></td><td>82,710</td><td>37,984</td></tr><tr><td>Net cash (outflow)/inflow from investing activities</td><td></td><td>(1,882,877)</td><td>(2,386,745)</td></tr><tr><td colspan=\"4\">Cash flows from financing activities</td></tr><tr><td>Repayments of borrowings</td><td>18</td><td>(4,764,478)</td><td>(3,540,587)</td></tr><tr><td>Principal elements of lease payments</td><td>12</td><td>(89,528)</td><td>(122,653)</td></tr><tr><td>Payment to Ethiopian Railways Corporation</td><td>25(a)</td><td>(3,215,699)</td><td>(1,253,273)</td></tr><tr><td>Net cash (outflow)/inflow from financing activities</td><td></td><td>(8,069,705)</td><td>(4,916,513)</td></tr><tr><td>Net increase/(decrease) in cash and cash equivalents</td><td></td><td>11,713,473</td><td>1,531,514</td></tr><tr><td>Cash and cash equivalents at the beginning of the year</td><td>17</td><td>4,207,111</td><td>2,770,692</td></tr><tr><td>Effects of exchange rate changes on cash and cash equivalents</td><td></td><td>(381,757)</td><td>(95,095)</td></tr><tr><td>Cash and cash equivalents at the end of the year</td><td>17</td><td>15,538,827</td><td>4,207,111</td></tr></table>"
+        },
+        {
+            "type": "text",
+            "bbox": [
+                0.15,
+                0.526,
+                0.595,
+                0.54
+            ],
+            "angle": 0,
+            "content": "The notes on pages 15 to 67 are an integral part of these financial statements."
+        },
+        {
+            "type": "image",
+            "bbox": [
+                0.175,
+                0.651,
+                0.415,
+                0.811
+            ],
+            "angle": 0,
+            "content": null
+        },
+        {
+            "type": "image",
+            "bbox": [
+                0.547,
+                0.667,
+                0.778,
+                0.832
+            ],
+            "angle": 0,
+            "content": null
+        },
+        {
+            "type": "footer",
+            "bbox": [
+                0.441,
+                0.836,
+                0.637,
+                0.973
+            ],
+            "angle": 0,
+            "content": "Ae 0118861296"
+        }
+    ]
+]

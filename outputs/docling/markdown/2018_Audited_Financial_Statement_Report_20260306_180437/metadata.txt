@@ -1,0 +1,6 @@
+document: 2018_Audited_Financial_Statement_Report
+source_pdf: /content/data/class_b/2018_Audited_Financial_Statement_Report.pdf
+conversion_time: 20260306_180437
+file_size_chars: 14783
+lines: 131
+date_processed: 2026-03-06 18:04:37

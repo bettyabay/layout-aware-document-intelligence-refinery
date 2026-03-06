@@ -1,0 +1,11 @@
+Document: 2018_Audited_Financial_Statement_Report.pdf
+Model: qwen/qwen3-235b-a22b:free
+Test Mode: True
+Pages Processed: first 3
+
+Extraction Results:
+  Text Blocks: 0
+  Tables: 0
+  Figures: 0
+
+Cost: $0.00 (FREE model)
