@@ -1,0 +1,132 @@
+# Extraction strategy configuration and routing rules.
+#
+# This file is intended to be the single source of truth for:
+# - Thresholds used by the TriageAgent and confidence scorers.
+# - Strategy selection knobs (fast text vs layout-aware vs vision).
+# - Layout-aware backend choice (Docling vs MinerU).
+
+# Confidence thresholds for strategy escalation
+confidence_thresholds:
+  # Strategy A (Fast Text) is sufficient if confidence >= this threshold
+  fast_text_sufficient: 0.85
+  
+  # Strategy B (Layout-Aware) is needed if Strategy A confidence < this
+  needs_layout_model: 0.60
+  
+  # Strategy C (Vision) is needed if Strategy B confidence < this
+  needs_vision_model: 0.30
+  
+  # Character density minimum (chars per page) for fast text to work
+  character_density_min: 50
+  
+  # Maximum image area ratio (0.0-1.0) for fast text to work
+  image_area_max: 0.5
+
+# Escalation configuration
+escalation:
+  # Threshold for escalating from Strategy A to Strategy B
+  a_to_b_threshold: 0.70
+  
+  # Threshold for escalating from Strategy B to Strategy C
+  b_to_c_threshold: 0.40
+  
+  # Maximum cost per document for vision models (USD)
+  max_vision_cost_per_doc: 0.05
+
+layout_strategy:
+  # Which layout-aware engine to use by default for Strategy B.
+  # Options:
+  #   - docling  : use `LayoutExtractor` (Docling-based)
+  #   - mineru   : use `MinerUExtractor` (MinerU-based)
+  engine: docling
+
+  # MinerU-specific configuration placeholders. These are not consumed
+  # directly by the current code yet, but document the intended control
+  # surface for a router or orchestration layer.
+  mineru:
+    # Default convention for MinerU JSON outputs. If empty, the
+    # `MinerUExtractor` will fall back to `<pdf>.mineru.json`.
+    output_dir: ".refinery/mineru_json"
+    output_extension: ".mineru.json"
+
+  docling:
+    # Reserved for future Docling-specific knobs (e.g., model variants).
+    model_variant: "default"
+
+# Chunking rules configuration.
+#
+# This section defines the rules and thresholds for the semantic chunking engine.
+# The chunking engine enforces five core rules:
+# 1. No table cell split from header
+# 2. Figure caption as metadata
+# 3. Numbered lists intact
+# 4. Section headers as parent metadata
+# 5. Cross-reference resolution
+chunking:
+  # Maximum tokens per chunk before splitting.
+  # Chunks exceeding this will be split on sentence boundaries.
+  max_tokens_per_chunk: 512
+
+  # Minimum tokens per chunk (chunks smaller than this may be merged).
+  # Set to 0 to disable merging.
+  min_tokens_per_chunk: 50
+
+  # Token counting model for tiktoken (if available).
+  # Options: "gpt-4", "gpt-3.5-turbo", "cl100k_base", etc.
+  token_model: "gpt-4"
+
+  # Chunk splitting strategy:
+  # - "semantic": Priority: sections > paragraphs > sentences (recommended)
+  # - "balanced": Prefer paragraphs, fall back to sentences
+  # - "greedy": Fill up to max_tokens, split at any sentence boundary
+  split_strategy: "semantic"
+
+  # Rules enforcement:
+  # - strict: All rules must pass, otherwise raise ValueError
+  # - warn: Log warnings but continue processing
+  # - relaxed: Only validate critical rules
+  enforcement_mode: "strict"
+
+  # Cross-reference resolution:
+  # - enabled: Resolve references like "see Table 3" to actual chunks
+  # - disabled: Skip cross-reference resolution
+  resolve_cross_references: true
+
+  # Parent section assignment:
+  # - enabled: Assign parent_section to chunks based on preceding headers
+  # - disabled: Skip parent section assignment
+  assign_parent_sections: true
+
+  # List preservation:
+  # - true: Keep lists as single LDUs when possible
+  # - false: Allow lists to be split like regular text
+  preserve_lists: true
+
+  # List splitting strategy:
+  # - "by_item": Split between list items (preserves item integrity)
+  # - "by_sublist": Split by sublists (groups of related items)
+  list_split_strategy: "by_item"
+
+# Validation configuration.
+#
+# This section defines validation rules and enforcement settings.
+validation:
+  # Log file for violations (JSONL format).
+  # Set to null or empty to disable file logging.
+  log_file: ".refinery/chunk_validation.log"
+
+  # Auto-fix violations when possible:
+  # - true: Attempt to automatically fix violations
+  # - false: Only log violations
+  auto_fix: false
+
+  # Enabled validation rules.
+  # Can be a list of rule names or a dictionary mapping rule names to enabled/disabled.
+  # Rule names: rule1_table_integrity, rule2_figure_captions, rule3_list_preservation,
+  #             rule4_section_hierarchy, rule5_cross_references
+  enabled_rules:
+    rule1_table_integrity: true
+    rule2_figure_captions: true
+    rule3_list_preservation: true
+    rule4_section_hierarchy: true
+    rule5_cross_references: true

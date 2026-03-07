@@ -1,0 +1,93 @@
+# Model configuration for Document Intelligence Refinery
+#
+# This file defines the models used throughout the pipeline, prioritizing
+# free tier models from OpenRouter whenever possible.
+
+# OpenRouter API Configuration
+openrouter:
+  # Base URL for OpenRouter API
+  base_url: "https://openrouter.ai/api/v1"
+  
+  # Default headers (API key should be set via OPENROUTER_API_KEY env var)
+  default_headers:
+    "HTTP-Referer": "https://github.com/example/document-intelligence-refinery"
+    "X-Title": "Document Intelligence Refinery"
+
+# Free Vision Language Models (VLM) - Priority order
+# These models are used only when Strategy C (Vision) is required
+free_vlm_models:
+  - name: "qwen/qwen2-vl-7b-instruct"
+    provider: "openrouter"
+    model_id: "qwen/qwen2-vl-7b-instruct:free"
+    max_tokens: 4096
+    context_window: 8192
+    priority: 1  # Highest priority (try first)
+    
+  - name: "nvidia/nemotron-4-12b-vl"
+    provider: "openrouter"
+    model_id: "nvidia/nemotron-4-12b-vl:free"
+    max_tokens: 4096
+    context_window: 8192
+    priority: 2
+    
+  - name: "meta-llama/llama-3.2-11b-vision"
+    provider: "openrouter"
+    model_id: "meta-llama/llama-3.2-11b-vision:free"
+    max_tokens: 4096
+    context_window: 8192
+    priority: 3
+
+# LLM Models for Summarization and Query Processing
+# Used in PageIndex Builder and Query Agent
+llm_models:
+  # Cheap models for summarization (PageIndex)
+  summarization:
+    default: "openai/gpt-4o-mini"
+    fallback: "anthropic/claude-3-haiku"
+    max_tokens: 512
+    temperature: 0.3
+    
+  # Models for query processing (Query Agent)
+  query:
+    default: "openai/gpt-4o-mini"
+    fallback: "anthropic/claude-3-haiku"
+    max_tokens: 2048
+    temperature: 0.1
+
+# Embedding Models
+# Used for vector store (ChromaDB/FAISS)
+embeddings:
+  default: "sentence-transformers/all-MiniLM-L6-v2"
+  # Alternative: "sentence-transformers/all-mpnet-base-v2" (better quality, slower)
+  dimension: 384  # For all-MiniLM-L6-v2
+
+# Vision Model Usage Rules
+# Controls when VLM models are used
+vision_usage:
+  # Only use VLM when:
+  use_when:
+    - "strategy_b_confidence < 0.40"
+    - "document_is_scanned_with_no_text_layer"
+    - "handwriting_detected"
+    - "table_extraction_confidence < 0.70"
+  
+  # Budget constraints
+  max_cost_per_document_usd: 0.05
+  max_cost_per_page_usd: 0.01
+  
+  # Retry configuration
+  max_retries: 2
+  retry_delay_seconds: 1
+
+# Model Selection Strategy
+model_selection:
+  # Mode: "auto" (use free models first), "manual" (user selects), "cost_optimized" (balance cost/quality)
+  mode: "auto"
+  
+  # Cost optimization
+  prefer_free_models: true
+  max_cost_per_query_usd: 0.10
+  
+  # Quality thresholds
+  min_confidence_for_acceptance: 0.70
+  require_provenance: true
