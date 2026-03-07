@@ -3,6 +3,8 @@
 from enum import Enum
 from typing import Literal
 
+from pydantic import BaseModel, Field
+
 
 class OriginType(str, Enum):
     """Document origin type classification."""
@@ -53,13 +55,12 @@ class EstimatedExtractionCost(str, Enum):
     NEEDS_VISION_MODEL = "needs_vision_model"
 
 
-class LanguageInfo:
+class LanguageInfo(BaseModel):
     """Language information."""
 
-    def __init__(self, code: str = "en", name: str = "English", confidence: float = 1.0):
-        self.code = code
-        self.name = name
-        self.confidence = confidence
+    code: str = Field(default="en", description="Language code (ISO 639-1)")
+    name: str = Field(default="English", description="Language name")
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Detection confidence")
 
     def __repr__(self) -> str:
         return f"LanguageInfo(code={self.code}, name={self.name}, confidence={self.confidence})"
