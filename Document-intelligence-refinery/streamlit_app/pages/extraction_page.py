@@ -124,7 +124,7 @@ def show():
                         return
                     
                     # Get or create profile
-                    profile_path = Path(f".refinery/profiles/{doc_name}.json")
+                    profile_path = Path(f".refinery/profiles/{doc_id}.json")
                     if profile_path.exists():
                         import json
                         with open(profile_path) as f:

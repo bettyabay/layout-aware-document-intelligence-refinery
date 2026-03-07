@@ -79,6 +79,9 @@ class PageIndexBuilder:
                 )
                 root.children.append(page_node)
 
+        # Add metadata
+        root.summary = f"Document: {extracted.document_name} with {len(extracted.pages)} pages"
+
         return root
 
     def _generate_summary(self, page) -> str:

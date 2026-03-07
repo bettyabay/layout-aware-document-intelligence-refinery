@@ -89,6 +89,11 @@ class ExtractionRouter:
         last_doc.ldus = ChunkingEngine(self.rules).build(last_doc)
         last_doc.metadata.strategy_sequence = sequence
 
+        # Build PageIndex
+        from src.agents.indexer import PageIndexBuilder
+        indexer = PageIndexBuilder(self.rules)
+        last_doc.page_index = indexer.build(last_doc)
+
         # Create ledger entry
         entry = ExtractionLedgerEntry(
             timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -107,5 +112,28 @@ class ExtractionRouter:
         # Append to ledger
         ledger_path = Path(".refinery/extraction_ledger.jsonl")
         append_jsonl(ledger_path, entry.model_dump())
+
+        # Save extracted document
+        extracted_dir = Path(".refinery/extracted")
+        extracted_dir.mkdir(parents=True, exist_ok=True)
+        import json
+        from src.utils.ledger import write_json
+        write_json(last_doc.model_dump(), extracted_dir / f"{profile.doc_id}.json")
+
+        # Save PageIndex
+        pageindex_dir = Path(".refinery/pageindex")
+        pageindex_dir.mkdir(parents=True, exist_ok=True)
+        if last_doc.page_index:
+            write_json(last_doc.page_index.model_dump(), pageindex_dir / f"{profile.doc_id}_pageindex.json")
+
+        # Ingest into vector store
+        try:
+            from src.db.vector_store import VectorStore
+            vector_store = VectorStore()
+            vector_store.ingest(profile.doc_id, [ldu.model_dump() for ldu in last_doc.ldus])
+        except Exception as e:
+            # Log but don't fail if vector store fails
+            import logging
+            logging.warning(f"Failed to ingest into vector store: {e}")
 
         return last_doc.model_dump(), entry

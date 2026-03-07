@@ -125,7 +125,7 @@ def build_pageindex(doc_id: str, doc_info: dict):
             rules = load_rules(str(rules_path))
             
             # Load extracted document
-            extracted_path = Path(f".refinery/extractions/{doc_info['name']}_extracted.json")
+            extracted_path = Path(f".refinery/extracted/{doc_id}.json")
             if not extracted_path.exists():
                 st.error("❌ Extracted document not found. Please run extraction first.")
                 return
