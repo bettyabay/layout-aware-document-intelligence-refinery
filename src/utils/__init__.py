@@ -19,6 +19,8 @@ from src.utils.reference_resolver import ReferenceResolver, resolve_cross_refere
 from src.utils.section_chunker import SectionChunker, build_section_hierarchy
 from src.utils.token_counter import TokenCounter, count_tokens, get_token_counter
 from src.utils.table_chunker import TableChunker, identify_table_structures
+from src.utils.vector_store import VectorStore
+from src.utils.fact_table import FactTable
 
 __all__ = [
     "character_density_score",
@@ -43,4 +45,6 @@ __all__ = [
     "TokenCounter",
     "count_tokens",
     "get_token_counter",
+    "VectorStore",
+    "FactTable",
 ]

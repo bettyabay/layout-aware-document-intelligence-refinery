@@ -22,9 +22,13 @@ from starlette.requests import Request
 
 from src.agents.chunker import ChunkingEngine
 from src.agents.extractor import ExtractionRouter
+from src.agents.indexer import PageIndexBuilder
+from src.agents.query_agent import QueryAgent
 from src.agents.triage import TriageAgent
 from src.models.document_profile import DocumentProfile
 from src.models.ldu import LDU
+from src.utils.fact_table import FactTable
+from src.utils.vector_store import VectorStore
 
 # Add custom Jinja2 filters
 def tojson_pretty(value):
@@ -66,9 +70,36 @@ def render_template(template_name: str, context: dict) -> str:
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # Initialize agents
-triage_agent = TriageAgent()
+triage_agent = TriageAgent(profiles_dir=PROFILES_DIR)
 extraction_router = ExtractionRouter()
 chunking_engine = ChunkingEngine()
+
+# Initialize query agent components (lazy initialization)
+_query_agent: Optional[QueryAgent] = None
+_vector_store: Optional[VectorStore] = None
+_fact_table: Optional[FactTable] = None
+
+
+def get_query_agent() -> QueryAgent:
+    """Get or create the query agent instance."""
+    global _query_agent, _vector_store, _fact_table
+    
+    if _query_agent is None:
+        vector_store_dir = REFINERY_DIR / "vector_store"
+        fact_table_path = REFINERY_DIR / "facts.db"
+        pageindex_dir = REFINERY_DIR / "pageindex"
+        
+        _vector_store = VectorStore(persist_directory=vector_store_dir)
+        _fact_table = FactTable(db_path=fact_table_path)
+        
+        _query_agent = QueryAgent(
+            vector_store=_vector_store,
+            fact_table=_fact_table,
+            pageindex_dir=pageindex_dir,
+            llm_api_key=None,  # Will read from env
+        )
+    
+    return _query_agent
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -575,6 +606,106 @@ async def get_chunks_json(doc_id: str):
         raise
     except Exception as exc:
         logger.exception("Failed to get chunks JSON")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/query/{doc_id}", response_class=HTMLResponse)
+async def query_document(request: Request, doc_id: str):
+    """Query interface for a document."""
+    try:
+        # Check if document exists
+        profile_path = PROFILES_DIR / f"{doc_id}.json"
+        if not profile_path.exists():
+            raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+        
+        profile_data = json.loads(profile_path.read_text(encoding="utf-8"))
+        doc_name = profile_data.get("metadata", {}).get("path", doc_id)
+        
+        # Check if chunks exist
+        chunks_path = CHUNKS_DIR / f"{doc_id}_chunks.json"
+        has_chunks = chunks_path.exists()
+        
+        return HTMLResponse(
+            render_template(
+                "query.html",
+                {
+                    "request": request,
+                    "doc_id": doc_id,
+                    "doc_name": doc_name,
+                    "has_chunks": has_chunks,
+                },
+            )
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to load query interface")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/query/{doc_id}")
+async def execute_query(doc_id: str, query: str = Form(...)):
+    """Execute a query on a document."""
+    try:
+        # Get query agent
+        query_agent = get_query_agent()
+        
+        # Get document name
+        profile_path = PROFILES_DIR / f"{doc_id}.json"
+        if profile_path.exists():
+            profile_data = json.loads(profile_path.read_text(encoding="utf-8"))
+            doc_name = profile_data.get("metadata", {}).get("path", doc_id)
+        else:
+            doc_name = doc_id
+        
+        # Execute query
+        result = query_agent.query(query=query, doc_id=doc_id, doc_name=doc_name)
+        
+        return JSONResponse(result)
+    except Exception as exc:
+        logger.exception("Failed to execute query")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/setup-query/{doc_id}")
+async def setup_query_for_document(doc_id: str):
+    """Set up query agent for a document (load chunks into vector store)."""
+    try:
+        # Load chunks
+        chunks = load_chunks_for_document(doc_id)
+        
+        if not chunks:
+            raise HTTPException(status_code=404, detail=f"No chunks found for {doc_id}")
+        
+        # Get document name
+        profile_path = PROFILES_DIR / f"{doc_id}.json"
+        if profile_path.exists():
+            profile_data = json.loads(profile_path.read_text(encoding="utf-8"))
+            doc_name = profile_data.get("metadata", {}).get("path", doc_id)
+        else:
+            doc_name = doc_id
+        
+        # Get query agent components
+        query_agent = get_query_agent()
+        
+        # Add chunks to vector store
+        query_agent.vector_store.add_ldus(doc_id=doc_id, doc_name=doc_name, ldus=chunks)
+        
+        # Extract facts
+        fact_count = query_agent.fact_table.extract_facts_from_ldus(
+            doc_id=doc_id, doc_name=doc_name, ldus=chunks
+        )
+        
+        return JSONResponse({
+            "success": True,
+            "message": f"Set up query agent for {doc_id}",
+            "chunks_added": len(chunks),
+            "facts_extracted": fact_count,
+        })
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to set up query agent")
         raise HTTPException(status_code=500, detail=str(exc))
 
 
