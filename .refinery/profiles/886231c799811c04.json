@@ -1,0 +1,21 @@
+{
+  "doc_id": "886231c799811c04",
+  "document_name": "2020_Audited_Financial_Statement_Report.pdf",
+  "origin_type": "scanned_image",
+  "layout_complexity": "single_column",
+  "language": {
+    "code": "und",
+    "confidence": 0.0
+  },
+  "domain_hint": "general",
+  "estimated_extraction_cost": "needs_vision_model",
+  "triage_signals": {
+    "avg_char_density": 0.0,
+    "avg_whitespace_ratio": 1.0,
+    "avg_image_area_ratio": 1.0,
+    "table_density": 0.0,
+    "figure_density": 1.9961357367190864e-06
+  },
+  "selected_strategy": "C",
+  "triage_confidence_score": 1.0
+}

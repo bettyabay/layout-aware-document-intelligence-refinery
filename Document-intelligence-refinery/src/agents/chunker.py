@@ -277,16 +277,41 @@ class ChunkingEngine:
 
     def _is_section_header(self, text: str) -> bool:
         """Detect if text is a section header."""
-        # Simple heuristics
+        text = text.strip()
+        if not text or len(text) > 200:
+            return False
+        
         text_upper = text.upper()
-        if len(text) < 100 and (
-            text_upper.startswith("CHAPTER")
-            or text_upper.startswith("SECTION")
-            or text_upper.startswith("PART")
-            or re.match(r"^\d+\.?\s+[A-Z]", text)
-            or (len(text.split()) <= 5 and text_upper == text)
-        ):
+        words = text.split()
+        
+        # Pattern 1: Numbered sections (e.g., "1. INTRODUCTION", "2.3 Methodology")
+        if re.match(r"^\d+[\.\)]\s+[A-Z]", text):
             return True
+        
+        # Pattern 2: All caps short text (likely headers)
+        if len(words) <= 8 and text_upper == text and len(text) > 5:
+            return True
+        
+        # Pattern 3: Common section keywords
+        section_keywords = [
+            "CHAPTER", "SECTION", "PART", "NOTICE", "AGENDA",
+            "CONTENTS", "TABLE OF CONTENTS", "INTRODUCTION",
+            "SUMMARY", "CONCLUSION", "APPENDIX", "REFERENCES"
+        ]
+        for keyword in section_keywords:
+            if text_upper.startswith(keyword):
+                return True
+        
+        # Pattern 4: Roman numerals followed by text (e.g., "I. Introduction")
+        if re.match(r"^[IVX]+\.\s+[A-Z]", text):
+            return True
+        
+        # Pattern 5: Short text that's mostly uppercase (80%+)
+        if len(text) > 5 and len(text) < 100:
+            upper_count = sum(1 for c in text if c.isupper())
+            if upper_count / len(text) > 0.7:
+                return True
+        
         return False
 
     def _is_list(self, text: str) -> bool:

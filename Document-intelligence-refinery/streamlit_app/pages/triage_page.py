@@ -31,8 +31,8 @@ def show():
     doc_id = ss.current_doc_id
     doc_info = ss.documents[doc_id]
 
-    # Load profile if available
-    profile_path = Path(f".refinery/profiles/{doc_info['name']}.json")
+    # Load profile if available (profiles are saved with doc_id as filename)
+    profile_path = Path(f".refinery/profiles/{doc_id}.json")
     if profile_path.exists():
         import json
         with open(profile_path) as f:

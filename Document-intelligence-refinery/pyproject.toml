@@ -35,6 +35,12 @@ dependencies = [
     "pymupdf>=1.23.0",
     "pdf2image>=1.16.0",
     "Pillow>=10.0.0",
+    # OCR support for Strategy B
+    "pytesseract>=0.3.10",
+    # Layout-aware extraction (optional - install separately if needed)
+    # Docling: pip install docling
+    # MinerU: pip install git+https://github.com/opendatalab/MinerU.git
+    # Tesseract OCR: Install separately - https://github.com/tesseract-ocr/tesseract
     
     # ML/AI dependencies
     "langchain>=0.1.0",

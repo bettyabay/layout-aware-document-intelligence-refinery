@@ -24,7 +24,14 @@ pip install -e .
 
 # Install optional ML dependencies
 pip install -e ".[dev]"
+
+# Optional: Install layout-aware extraction engines
+pip install docling  # For Docling (recommended)
+# OR
+pip install git+https://github.com/opendatalab/MinerU.git  # For MinerU
 ```
+
+See [docs/LAYOUT_EXTRACTION_SETUP.md](docs/LAYOUT_EXTRACTION_SETUP.md) for detailed setup instructions.
 
 ## Configuration
 

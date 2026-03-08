@@ -32,8 +32,8 @@ def show():
     doc_id = ss.current_doc_id
     doc_info = ss.documents[doc_id]
 
-    # Load PageIndex if available
-    pageindex_path = Path(f".refinery/pageindex/{doc_info['name']}_pageindex.json")
+    # Load PageIndex if available (pageindex files are saved with doc_id as prefix)
+    pageindex_path = Path(f".refinery/pageindex/{doc_id}_pageindex.json")
     
     if pageindex_path.exists():
         with open(pageindex_path) as f:
@@ -143,7 +143,7 @@ def build_pageindex(doc_id: str, doc_info: dict):
             pageindex_dir = Path(".refinery/pageindex")
             pageindex_dir.mkdir(parents=True, exist_ok=True)
             
-            pageindex_path = pageindex_dir / f"{doc_info['name']}_pageindex.json"
+            pageindex_path = pageindex_dir / f"{doc_id}_pageindex.json"
             with open(pageindex_path, "w") as f:
                 json.dump(pageindex.model_dump(), f, indent=2)
             
